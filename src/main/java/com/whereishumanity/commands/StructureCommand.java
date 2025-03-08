@@ -375,12 +375,16 @@ public class StructureCommand {
         int width = session.width;
         int length = session.length;
         
-        // Placer de la laine rouge dans le sol pour marquer le périmètre
+        // Placer de la laine rouge au niveau du sol pour marquer le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    // Placer uniquement sur le périmètre au niveau du sol, un bloc plus bas
-                    level.setBlock(startPos.offset(x, -1, z), Blocks.RED_WOOL.defaultBlockState(), 3);
+                    // Placer les blocs de laine rouge directement dans le sol (niveau 0)
+                    BlockPos blockPos = startPos.offset(x, 0, z);
+                    // Sauvegarder le bloc existant pour pouvoir le restaurer plus tard
+                    session.originalBlocks.put(blockPos, level.getBlockState(blockPos));
+                    // Remplacer par la laine rouge
+                    level.setBlock(blockPos, Blocks.RED_WOOL.defaultBlockState(), 3);
                 }
             }
         }
@@ -393,25 +397,15 @@ public class StructureCommand {
      */
     private static void clearBuildingArea(ServerPlayer player, RecordingSession session) {
         ServerLevel level = player.serverLevel();
-        BlockPos startPos = session.startPos;
-        int width = session.width;
-        int length = session.length;
         
-        // Retirer tous les blocs de bordure dans le sol
-        for (int x = 0; x < width; x++) {
-            for (int z = 0; z < length; z++) {
-                if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    BlockPos pos = startPos.offset(x, -1, z);
-                    if (level.getBlockState(pos).is(Blocks.RED_WOOL)) {
-                        level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-                    }
-                }
-            }
+        // Restaurer tous les blocs d'origine qui ont été remplacés par de la laine rouge
+        for (Map.Entry<BlockPos, BlockState> entry : session.originalBlocks.entrySet()) {
+            level.setBlock(entry.getKey(), entry.getValue(), 3);
         }
         
         // Retirer le bloc marqueur d'entrée si présent
         if (session.entrancePos != null) {
-            BlockPos entranceWorldPos = startPos.offset(session.entrancePos);
+            BlockPos entranceWorldPos = session.startPos.offset(session.entrancePos);
             if (level.getBlockState(entranceWorldPos).is(Blocks.GOLD_BLOCK)) {
                 level.setBlock(entranceWorldPos, Blocks.AIR.defaultBlockState(), 3);
             }
@@ -443,6 +437,8 @@ public class StructureCommand {
         public BlockPos entrancePos;
         public final int width;
         public final int length;
+        // Stockage pour les blocs originaux remplacés par la laine rouge
+        public final Map<BlockPos, BlockState> originalBlocks = new HashMap<>();
         
         public RecordingSession(StructureType structureType, String structureName, BlockPos startPos, int width, int length) {
             this.structureType = structureType;
