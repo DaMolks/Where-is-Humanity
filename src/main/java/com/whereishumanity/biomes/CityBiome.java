@@ -1,17 +1,21 @@
 package com.whereishumanity.biomes;
 
 import com.whereishumanity.entities.EntityRegistry;
+import net.minecraft.core.HolderGetter;
 import net.minecraft.data.worldgen.BiomeDefaultFeatures;
 import net.minecraft.data.worldgen.placement.VegetationPlacements;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.level.biome.AmbientMoodSettings;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeGenerationSettings;
 import net.minecraft.world.level.biome.BiomeSpecialEffects;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.levelgen.GenerationStep;
+import net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver;
+import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
 /**
  * Biome de ville abandonnée avec banlieue
@@ -23,9 +27,13 @@ public class CityBiome {
      * Crée et configure le biome de ville abandonnée
      * @return Le biome configuré
      */
-    public static Biome createBiome() {
+    public static Biome createBiome(HolderGetter<PlacedFeature> placedFeatureGetter, 
+                                    HolderGetter<ConfiguredWorldCarver<?>> carverGetter) {
         // Paramètres de génération du biome
-        BiomeGenerationSettings.Builder biomeBuilder = new BiomeGenerationSettings.Builder();
+        BiomeGenerationSettings.Builder biomeBuilder = new BiomeGenerationSettings.Builder(
+            placedFeatureGetter,
+            carverGetter
+        );
         
         // Caractéristiques de base minimales
         BiomeDefaultFeatures.addDefaultCarversAndLakes(biomeBuilder);
@@ -80,8 +88,7 @@ public class CityBiome {
                 .waterColor(4159204) // Eau sale
                 .waterFogColor(329011) // Brume d'eau
                 .skyColor(calculateSkyColor(0.6F)) // Ciel un peu plus clair que la métropole
-                .ambientMoodSound(new BiomeSpecialEffects.AmbientMoodSettings(
-                        SoundEvents.AMBIENT_CAVE, 6000, 8, 2.0D)) // Sons d'ambiance
+                .ambientMoodSound(AmbientMoodSettings.LEGACY_CAVE_SETTINGS) // Sons d'ambiance
                 .backgroundMusic(null); // Pas de musique
         
         // Construire et retourner le biome complet
