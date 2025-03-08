@@ -222,7 +222,8 @@ public class SoundDetectionSystem {
             soundLevel = 1; // Autres = son faible
         }
         
-        emitSound(event.getLevel().getLevel(), event.getPos(), soundLevel, event.getPlayer());
+        // Corriger l'appel à getLevel() qui était la source de l'erreur
+        emitSound(event.getLevel(), event.getPos(), soundLevel, event.getPlayer());
     }
     
     @SubscribeEvent
