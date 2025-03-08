@@ -144,11 +144,12 @@ public class StructureCommand {
             return 0;
         }
         
-        // Utiliser directement la position des pieds du joueur
+        // Obtenir la position au sol au lieu des pieds du joueur
         BlockPos playerPos = player.blockPosition();
+        BlockPos groundPos = findGroundPosition(player.level(), playerPos);
         
         // Créer une nouvelle session d'enregistrement avec dimensions personnalisées
-        RecordingSession session = new RecordingSession(structureType, structureName, playerPos, width, length);
+        RecordingSession session = new RecordingSession(structureType, structureName, groundPos, width, length);
         activeSessions.put(playerId, session);
         
         // Afficher la zone de construction au sol
@@ -162,6 +163,22 @@ public class StructureCommand {
         context.getSource().sendSuccess(() -> Component.literal("Enfin, utilisez /wih structure save pour enregistrer la structure."), true);
                 
         return 1;
+    }
+
+    /**
+     * Trouve la position du sol sous le joueur
+     * @param level Le niveau
+     * @param playerPos Position du joueur
+     * @return Position du sol
+     */
+    private static BlockPos findGroundPosition(Level level, BlockPos playerPos) {
+        // Descendre jusqu'à trouver un bloc solide
+        BlockPos groundPos = playerPos;
+        while (groundPos.getY() > 0 && level.getBlockState(groundPos.below()).isAir()) {
+            groundPos = groundPos.below();
+        }
+        // Maintenant, descendre d'un bloc supplémentaire pour être dans le sol plutôt que dessus
+        return groundPos.below();
     }
 
     /**
@@ -350,7 +367,7 @@ public class StructureCommand {
     }
 
     /**
-     * Affiche la zone de construction avec des blocs de laine rouge directement SOUS les pieds (-1)
+     * Affiche la zone de construction avec des blocs de laine rouge dans le sol
      * @param player Joueur
      * @param session Session d'enregistrement
      */
@@ -360,16 +377,12 @@ public class StructureCommand {
         int width = session.width;
         int length = session.length;
         
-        // SIMPLEMENT placer de la laine rouge un bloc sous les pieds (-1 en Y)
+        // Placer de la laine rouge directement dans le sol sur le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    // Position avec Y-1 explicite pour être dans le sol
-                    BlockPos blockPos = new BlockPos(
-                            startPos.getX() + x,
-                            startPos.getY() - 1,  // Explicitement -1 par rapport à la position des pieds
-                            startPos.getZ() + z
-                    );
+                    // Calculer la position exacte
+                    BlockPos blockPos = startPos.offset(x, 0, z);
                     
                     // Sauvegarder le bloc existant pour pouvoir le restaurer plus tard
                     session.originalBlocks.put(blockPos, level.getBlockState(blockPos));
