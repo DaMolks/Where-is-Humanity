@@ -4,6 +4,7 @@ import com.whereishumanity.biomes.BiomeRegistry;
 import com.whereishumanity.commands.StructureCommand;
 import com.whereishumanity.config.ModConfig;
 import com.whereishumanity.entities.EntityRegistry;
+import com.whereishumanity.worldgen.features.FeatureRegistry;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -32,7 +33,7 @@ public class WhereIsHumanity {
      * Enregistre les gestionnaires d'événements et initialise les systèmes du mod.
      */
     public WhereIsHumanity() {
-        LOGGER.info("Initialisation du mod 'Where is Humanity'");
+        LOGGER.info("Initialisation du mod 'Where is Humanity' v0.2.0");
         
         // Obtenir le bus d'événements du mod
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -60,6 +61,9 @@ public class WhereIsHumanity {
         
         // Enregistrer les biomes
         BiomeRegistry.register(eventBus);
+        
+        // Enregistrer les features de génération du monde
+        FeatureRegistry.register(eventBus);
         
         LOGGER.info("Systèmes du mod enregistrés");
     }
