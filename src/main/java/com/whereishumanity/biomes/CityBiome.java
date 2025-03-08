@@ -94,8 +94,8 @@ public class CityBiome {
                 .backgroundMusic(null); // Pas de musique
         
         // Construire et retourner le biome complet
-        return new Biome.Builder()
-                .precipitation(Biome.Precipitation.RAIN)
+        return new Biome.BiomeBuilder()
+                .hasPrecipitation(true)
                 .temperature(0.6F) // Température légèrement plus élevée
                 .downfall(0.6F) // Précipitations légèrement plus élevées
                 .specialEffects(effectsBuilder.build())
