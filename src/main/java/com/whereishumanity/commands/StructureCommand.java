@@ -106,13 +106,13 @@ public class StructureCommand {
         RecordingSession session = new RecordingSession(structureType, structureName, startPos);
         activeSessions.put(playerId, session);
         
-        // Afficher la zone de construction
+        // Afficher la zone de construction au sol
         displayBuildingArea(player, session);
         
         context.getSource().sendSuccess(() -> Component.literal("Session d'enregistrement démarrée pour une structure de type " + 
                 structureType.name() + " nommée '" + structureName + "'."), true);
-        context.getSource().sendSuccess(() -> Component.literal("Dimensions: " + 
-                structureType.getWidth() + "x" + structureType.getHeight() + "x" + structureType.getLength()), true);
+        context.getSource().sendSuccess(() -> Component.literal("Dimensions au sol: " + 
+                structureType.getWidth() + "x" + structureType.getLength() + " (hauteur libre)"), true);
         context.getSource().sendSuccess(() -> Component.literal("Construisez votre structure dans la zone indiquée, puis utilisez /wih structure setentrance pour définir l'entrée."), true);
         context.getSource().sendSuccess(() -> Component.literal("Enfin, utilisez /wih structure save pour enregistrer la structure."), true);
                 
@@ -166,9 +166,9 @@ public class StructureCommand {
         // Utiliser le bloc sur lequel le joueur se trouve
         BlockPos entrancePos = player.blockPosition();
         
-        // Vérifier si la position est dans la zone de construction
-        if (!isWithinBuildingArea(entrancePos, session)) {
-            context.getSource().sendFailure(Component.literal("La position d'entrée doit être dans la zone de construction."));
+        // Vérifier si la position est dans la zone de construction au sol
+        if (!isWithinBuildingAreaXZ(entrancePos, session)) {
+            context.getSource().sendFailure(Component.literal("La position d'entrée doit être dans la zone de construction (vérification au sol uniquement)."));
             return 0;
         }
         
@@ -215,17 +215,19 @@ public class StructureCommand {
                     session.structureType.getCategory().toLowerCase());
             Files.createDirectories(structuresDir);
             
-            // Obtenir les dimensions
+            // Obtenir les dimensions au sol (X, Z)
             int width = session.structureType.getWidth();
-            int height = session.structureType.getHeight();
             int length = session.structureType.getLength();
+            
+            // Détecter la hauteur réelle de la structure
+            int height = detectStructureHeight(level, session.startPos, width, length);
             
             // Créer un template de structure
             StructureTemplateManager templateManager = level.getStructureManager();
             ResourceLocation structureId = new ResourceLocation(WhereIsHumanity.MOD_ID, session.structureName);
             StructureTemplate template = templateManager.getOrCreate(structureId);
             
-            // Définir la zone à enregistrer
+            // Définir la zone à enregistrer avec la hauteur détectée
             BlockPos endPos = session.startPos.offset(width - 1, height - 1, length - 1);
             template.fillFromWorld(level, session.startPos, new BlockPos(width, height, length), true, Blocks.AIR);
             
@@ -264,6 +266,7 @@ public class StructureCommand {
             
             context.getSource().sendSuccess(() -> Component.literal("Structure '" + session.structureName + 
                     "' enregistrée avec succès dans " + structurePath.toString()), true);
+            context.getSource().sendSuccess(() -> Component.literal("Hauteur détectée automatiquement: " + height + " blocs"), true);
             
             return 1;
         } catch (IOException e) {
@@ -274,7 +277,35 @@ public class StructureCommand {
     }
 
     /**
-     * Affiche la zone de construction avec des blocs de bordure
+     * Détecte la hauteur maximale utilisée par la structure
+     * @param level Le niveau du serveur
+     * @param startPos Position de départ
+     * @param width Largeur
+     * @param length Longueur
+     * @return Hauteur maximale détectée (min 5 blocs)
+     */
+    private static int detectStructureHeight(ServerLevel level, BlockPos startPos, int width, int length) {
+        int maxHeight = 1; // Au moins un bloc de haut
+        int scanHeight = 256; // Hauteur de scan maximale
+        
+        // Scanner la zone pour trouver le bloc le plus haut
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < length; z++) {
+                for (int y = 0; y < scanHeight; y++) {
+                    BlockPos pos = startPos.offset(x, y, z);
+                    if (!level.getBlockState(pos).isAir() && !level.getBlockState(pos).is(Blocks.RED_WOOL)) {
+                        maxHeight = Math.max(maxHeight, y + 1);
+                    }
+                }
+            }
+        }
+        
+        // Assurer une hauteur minimale de 5 blocs
+        return Math.max(maxHeight, 5);
+    }
+
+    /**
+     * Affiche la zone de construction avec des blocs de laine rouge au sol uniquement
      * @param player Joueur
      * @param session Session d'enregistrement
      */
@@ -282,39 +313,23 @@ public class StructureCommand {
         ServerLevel level = player.serverLevel();
         BlockPos startPos = session.startPos;
         int width = session.structureType.getWidth();
-        int height = session.structureType.getHeight();
         int length = session.structureType.getLength();
         
-        // Afficher les coins et arêtes
+        // Placer de la laine rouge au sol pour marquer le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
-                // Coins bas
-                if ((x == 0 || x == width - 1) && (z == 0 || z == length - 1)) {
-                    level.setBlock(startPos.offset(x, 0, z), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
-                }
-                // Arêtes bas
-                else if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    level.setBlock(startPos.offset(x, 0, z), Blocks.IRON_BLOCK.defaultBlockState(), 3);
-                }
-                
-                // Coins haut
-                if ((x == 0 || x == width - 1) && (z == 0 || z == length - 1)) {
-                    level.setBlock(startPos.offset(x, height - 1, z), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
-                }
-                // Arêtes haut
-                else if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    level.setBlock(startPos.offset(x, height - 1, z), Blocks.IRON_BLOCK.defaultBlockState(), 3);
+                if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
+                    // Placer uniquement sur le périmètre
+                    level.setBlock(startPos.offset(x, 0, z), Blocks.RED_WOOL.defaultBlockState(), 3);
                 }
             }
         }
         
-        // Afficher les piliers verticaux aux coins
-        for (int y = 1; y < height - 1; y++) {
-            level.setBlock(startPos.offset(0, y, 0), Blocks.IRON_BLOCK.defaultBlockState(), 3);
-            level.setBlock(startPos.offset(width - 1, y, 0), Blocks.IRON_BLOCK.defaultBlockState(), 3);
-            level.setBlock(startPos.offset(0, y, length - 1), Blocks.IRON_BLOCK.defaultBlockState(), 3);
-            level.setBlock(startPos.offset(width - 1, y, length - 1), Blocks.IRON_BLOCK.defaultBlockState(), 3);
-        }
+        // Afficher les coins avec des blocs de diamant pour plus de visibilité
+        level.setBlock(startPos.offset(0, 0, 0), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        level.setBlock(startPos.offset(width - 1, 0, 0), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        level.setBlock(startPos.offset(0, 0, length - 1), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
+        level.setBlock(startPos.offset(width - 1, 0, length - 1), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
     }
 
     /**
@@ -326,46 +341,18 @@ public class StructureCommand {
         ServerLevel level = player.serverLevel();
         BlockPos startPos = session.startPos;
         int width = session.structureType.getWidth();
-        int height = session.structureType.getHeight();
         int length = session.structureType.getLength();
         
-        // Retirer tous les blocs de bordure
+        // Retirer tous les blocs de bordure au sol
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
                     BlockPos pos = startPos.offset(x, 0, z);
-                    if (level.getBlockState(pos).is(Blocks.IRON_BLOCK) || level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK)) {
-                        level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-                    }
-                    
-                    pos = startPos.offset(x, height - 1, z);
-                    if (level.getBlockState(pos).is(Blocks.IRON_BLOCK) || level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK)) {
+                    if (level.getBlockState(pos).is(Blocks.RED_WOOL) || 
+                        level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK)) {
                         level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
                     }
                 }
-            }
-        }
-        
-        // Retirer les piliers verticaux
-        for (int y = 1; y < height - 1; y++) {
-            BlockPos pos = startPos.offset(0, y, 0);
-            if (level.getBlockState(pos).is(Blocks.IRON_BLOCK)) {
-                level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-            }
-            
-            pos = startPos.offset(width - 1, y, 0);
-            if (level.getBlockState(pos).is(Blocks.IRON_BLOCK)) {
-                level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-            }
-            
-            pos = startPos.offset(0, y, length - 1);
-            if (level.getBlockState(pos).is(Blocks.IRON_BLOCK)) {
-                level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-            }
-            
-            pos = startPos.offset(width - 1, y, length - 1);
-            if (level.getBlockState(pos).is(Blocks.IRON_BLOCK)) {
-                level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
             }
         }
         
@@ -379,19 +366,17 @@ public class StructureCommand {
     }
 
     /**
-     * Vérifie si une position est dans la zone de construction
+     * Vérifie si une position est dans la zone de construction (vérifie uniquement X et Z)
      * @param pos Position à vérifier
      * @param session Session d'enregistrement
-     * @return true si la position est dans la zone
+     * @return true si la position est dans la zone au sol
      */
-    private static boolean isWithinBuildingArea(BlockPos pos, RecordingSession session) {
+    private static boolean isWithinBuildingAreaXZ(BlockPos pos, RecordingSession session) {
         BlockPos startPos = session.startPos;
         int width = session.structureType.getWidth();
-        int height = session.structureType.getHeight();
         int length = session.structureType.getLength();
         
         return pos.getX() >= startPos.getX() && pos.getX() < startPos.getX() + width &&
-               pos.getY() >= startPos.getY() && pos.getY() < startPos.getY() + height &&
                pos.getZ() >= startPos.getZ() && pos.getZ() < startPos.getZ() + length;
     }
 
