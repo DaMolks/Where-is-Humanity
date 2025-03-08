@@ -1,12 +1,17 @@
 package com.whereishumanity.biomes;
 
+import net.minecraft.core.HolderGetter;
 import net.minecraft.data.worldgen.BiomeDefaultFeatures;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.level.biome.AmbientMoodSettings;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeGenerationSettings;
 import net.minecraft.world.level.biome.BiomeSpecialEffects;
 import net.minecraft.world.level.biome.MobSpawnSettings;
+import net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver;
+import net.minecraft.world.level.levelgen.placement.PlacedFeature;
+import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * Biome vide pour permettre la compilation sans accès aux holders
@@ -18,12 +23,13 @@ public class EmptyBiome {
      * @return Un biome vide avec des valeurs par défaut
      */
     public static Biome createEmptyBiome() {
-        // Paramètres de génération minimaux
-        BiomeGenerationSettings.Builder biomeBuilder = new BiomeGenerationSettings.Builder();
-        
         // Paramètres de spawn minimaux
-        MobSpawnSettings.Builder spawnBuilder = new MobSpawnSettings.Builder();
-        spawnBuilder.creatureGenerationProbability(0.0F);
+        MobSpawnSettings mobSpawnSettings = new MobSpawnSettings.Builder()
+            .creatureGenerationProbability(0.0F)
+            .build();
+        
+        // Paramètres de génération minimaux - sans holders pour le moment
+        BiomeGenerationSettings biomeGenSettings = BiomeGenerationSettings.EMPTY;
         
         // Effets spéciaux vides
         BiomeSpecialEffects effects = new BiomeSpecialEffects.Builder()
@@ -34,15 +40,14 @@ public class EmptyBiome {
                 .ambientMoodSound(AmbientMoodSettings.LEGACY_CAVE_SETTINGS)
                 .build();
         
-        // Créer le biome avec des valeurs minimales
-        // Utilisation de la méthode de construction compatible avec 1.20.1
-        return new Biome.Builder()
-                .precipitation(Biome.Precipitation.RAIN)
-                .temperature(0.5F)
-                .downfall(0.5F)
+        // Créer le biome avec des valeurs minimales en utilisant l'API correcte
+        return new Biome.BiomeBuilder()
+                .hasPrecipitation(true)
+                .downfall(0.5f)
+                .temperature(0.5f)
                 .specialEffects(effects)
-                .mobSpawnSettings(spawnBuilder.build())
-                .generationSettings(biomeBuilder.build())
+                .mobSpawnSettings(mobSpawnSettings)
+                .generationSettings(biomeGenSettings)
                 .build();
     }
 }
