@@ -2,6 +2,7 @@ package com.whereishumanity.biomes;
 
 import com.whereishumanity.entities.EntityRegistry;
 import net.minecraft.core.HolderGetter;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.data.worldgen.BiomeDefaultFeatures;
 import net.minecraft.data.worldgen.placement.VegetationPlacements;
 import net.minecraft.sounds.Music;
@@ -14,6 +15,7 @@ import net.minecraft.world.level.biome.*;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import javax.annotation.Nullable;
 import java.util.Optional;
@@ -26,27 +28,18 @@ public class MetropolisBiome {
     
     /**
      * Crée et configure le biome de métropole abandonnée
+     * @param placedFeatureGetter Le getter pour les features placées
+     * @param carverGetter Le getter pour les carvers configurés
      * @return Le biome configuré
      */
-    public static Biome createBiome() {
+    public static Biome createBiome(HolderGetter<PlacedFeature> placedFeatureGetter, 
+                                   HolderGetter<ConfiguredWorldCarver<?>> carverGetter) {
         MobSpawnSettings.Builder spawnBuilder = createMobSpawnSettings();
-        BiomeGenerationSettings.Builder biomeBuilder = createBiomeGenerationSettings();
+        BiomeGenerationSettings.Builder biomeBuilder = createBiomeGenerationSettings(placedFeatureGetter, carverGetter);
         
         return createBiome(spawnBuilder, biomeBuilder);
     }
     
-    /**
-     * Crée les paramètres de génération pour le biome de métropole abandonnée
-     * @return Les paramètres de génération
-     */
-    public static BiomeGenerationSettings.Builder createDummyGenerationSettings() {
-        // Placeholder pour la compilation (sera remplacé lors de la génération réelle)
-        return new BiomeGenerationSettings.Builder(
-            PlacedFeature.getOrCreateHolderGetter(), 
-            ConfiguredWorldCarver.getOrCreateHolderGetter()
-        );
-    }
-
     /**
      * Crée les paramètres de spawn pour le biome de métropole abandonnée
      * @return Les paramètres de spawn
@@ -85,12 +78,30 @@ public class MetropolisBiome {
 
     /**
      * Crée les paramètres de génération pour le biome de métropole abandonnée
+     * @param placedFeatureGetter Le getter pour les features placées
+     * @param carverGetter Le getter pour les carvers configurés
      * @return Les paramètres de génération
      */
-    public static BiomeGenerationSettings.Builder createBiomeGenerationSettings() {
-        // Cette méthode est appelée pendant la génération réelle
-        // Pour la compilation, on utilise un placeholder
-        return createDummyGenerationSettings();
+    public static BiomeGenerationSettings.Builder createBiomeGenerationSettings(
+            HolderGetter<PlacedFeature> placedFeatureGetter, 
+            HolderGetter<ConfiguredWorldCarver<?>> carverGetter) {
+        BiomeGenerationSettings.Builder biomeBuilder = new BiomeGenerationSettings.Builder(
+            placedFeatureGetter,
+            carverGetter
+        );
+        
+        // Caractéristiques de base minimales
+        BiomeDefaultFeatures.addDefaultCarversAndLakes(biomeBuilder);
+        BiomeDefaultFeatures.addDefaultCrystalFormations(biomeBuilder);
+        BiomeDefaultFeatures.addDefaultMonsterRoom(biomeBuilder);
+        BiomeDefaultFeatures.addDefaultUndergroundVariety(biomeBuilder);
+        BiomeDefaultFeatures.addDefaultSprings(biomeBuilder);
+        
+        // Très peu de végétation dans les zones urbaines denses
+        biomeBuilder.addFeature(GenerationStep.Decoration.VEGETAL_DECORATION, 
+                VegetationPlacements.PATCH_GRASS_PLAIN);
+        
+        return biomeBuilder;
     }
 
     /**
