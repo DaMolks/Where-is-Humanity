@@ -4,7 +4,6 @@ import com.whereishumanity.entities.EntityRegistry;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.data.worldgen.BiomeDefaultFeatures;
 import net.minecraft.data.worldgen.placement.VegetationPlacements;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -114,9 +113,9 @@ public class VillageBiome {
         
         // Construire et retourner le biome complet
         return new Biome.Builder()
+                .precipitation(Biome.Precipitation.RAIN)
                 .temperature(0.7F) // Température plus élevée
                 .downfall(0.7F) // Précipitations plus élevées
-                .hasPrecipitation(true)
                 .specialEffects(effectsBuilder.build())
                 .mobSpawnSettings(spawnBuilder.build())
                 .generationSettings(biomeBuilder.build())
