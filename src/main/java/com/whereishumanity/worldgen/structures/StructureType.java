@@ -6,54 +6,54 @@ package com.whereishumanity.worldgen.structures;
  */
 public enum StructureType {
     // Bâtiments individuels
-    SMALL_HOUSE(7, 6, 7, "residential"),
-    MEDIUM_HOUSE(9, 7, 9, "residential"),
-    LARGE_HOUSE(12, 8, 12, "residential"),
-    APARTMENT_BUILDING(12, 20, 12, "residential"),
+    SMALL_HOUSE(7, 7, 8, "residential"),
+    MEDIUM_HOUSE(9, 9, 10, "residential"),
+    LARGE_HOUSE(12, 12, 15, "residential"),
+    APARTMENT_BUILDING(12, 12, 30, "residential"),
     
     // Bâtiments multi-blocks
-    APARTMENT_COMPLEX(36, 20, 12, "residential"),      // Barre d'immeuble (3x1 blocs)
-    SKYSCRAPER(24, 80, 24, "commercial"),              // Gratte-ciel (2x2 blocs)
-    OFFICE_BUILDING(24, 40, 24, "commercial"),         // Immeuble de bureaux (2x2 blocs)
-    MALL(48, 15, 48, "commercial"),                    // Centre commercial (4x4 blocs)
+    APARTMENT_COMPLEX(36, 12, 30, "residential"),      // Barre d'immeuble (3x1 blocs)
+    SKYSCRAPER(24, 24, 100, "commercial"),             // Gratte-ciel (2x2 blocs)
+    OFFICE_BUILDING(24, 24, 50, "commercial"),         // Immeuble de bureaux (2x2 blocs)
+    MALL(48, 48, 20, "commercial"),                    // Centre commercial (4x4 blocs)
     
     // Services publics
-    POLICE_STATION(16, 12, 16, "government"),
-    FIRE_STATION(16, 12, 16, "government"),
-    HOSPITAL(32, 20, 24, "government"),                // Hôpital (2x3 blocs)
-    GOVERNMENT_BUILDING(24, 20, 32, "government"),     // Bâtiment administratif (2x2 blocs)
-    SCHOOL(32, 12, 32, "government"),                  // École (2x2 blocs)
+    POLICE_STATION(16, 16, 15, "government"),
+    FIRE_STATION(16, 20, 15, "government"),
+    HOSPITAL(32, 24, 25, "government"),                // Hôpital (2x3 blocs)
+    GOVERNMENT_BUILDING(24, 32, 25, "government"),     // Bâtiment administratif (2x2 blocs)
+    SCHOOL(32, 32, 15, "government"),                  // École (2x2 blocs)
     
     // Militaire
-    MILITARY_OUTPOST(20, 10, 20, "military"),
-    MILITARY_BASE(48, 15, 48, "military"),             // Base (4x4 blocs)
+    MILITARY_OUTPOST(20, 20, 12, "military"),
+    MILITARY_BASE(48, 48, 20, "military"),             // Base (4x4 blocs)
     
     // Industriel
-    FACTORY(24, 15, 32, "industrial"),                 // Usine (2x2 blocs)
-    WAREHOUSE(16, 10, 24, "industrial"),
+    FACTORY(24, 32, 20, "industrial"),                 // Usine (2x2 blocs)
+    WAREHOUSE(16, 24, 12, "industrial"),
     
     // Infrastructures
-    GAS_STATION(10, 6, 12, "infrastructure"),
-    POWER_STATION(16, 12, 16, "infrastructure"),
-    WATER_TOWER(10, 20, 10, "infrastructure"),
+    GAS_STATION(20, 24, 8, "infrastructure"),          // Station-service (ajustée)
+    POWER_STATION(16, 16, 15, "infrastructure"),
+    WATER_TOWER(10, 10, 25, "infrastructure"),
     
     // Routes et ponts
-    ROAD_STRAIGHT(16, 1, 8, "road"),
-    ROAD_TURN(16, 1, 16, "road"),
-    ROAD_INTERSECTION(16, 1, 16, "road"),
-    HIGHWAY_SECTION(16, 8, 16, "road"),
-    BRIDGE_SECTION(16, 12, 16, "road"),
+    ROAD_STRAIGHT(16, 8, 2, "road"),
+    ROAD_TURN(16, 16, 2, "road"),
+    ROAD_INTERSECTION(16, 16, 2, "road"),
+    HIGHWAY_SECTION(16, 16, 10, "road"),
+    BRIDGE_SECTION(16, 16, 15, "road"),
     
     // Divers
-    PARK(16, 4, 16, "misc"),
-    PARKING_LOT(16, 1, 16, "misc"),
-    RUINS(10, 5, 10, "misc"),
+    PARK(16, 16, 5, "misc"),
+    PARKING_LOT(16, 16, 2, "misc"),
+    RUINS(10, 10, 6, "misc"),
     
     // Décoration urbaine
-    STREET_PROPS(5, 5, 5, "props");
+    STREET_PROPS(5, 5, 6, "props");
     
     private final int width;  // Largeur (X)
-    private final int height; // Hauteur (Y)
+    private final int height; // Hauteur (Y) - Maximum, pas une limite stricte
     private final int length; // Longueur (Z)
     private final String category; // Catégorie pour l'organisation des fichiers
     
