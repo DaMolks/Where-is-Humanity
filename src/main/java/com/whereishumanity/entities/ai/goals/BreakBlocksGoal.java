@@ -14,10 +14,8 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.GlassBlock;
-import net.minecraft.world.level.block.GlassPaneBlock;
-import net.minecraft.world.level.block.IronDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
@@ -132,17 +130,18 @@ public class BreakBlocksGoal extends Goal {
             // Casser le bloc
             Level level = zombie.level();
             BlockState state = level.getBlockState(targetPos);
+            Block block = state.getBlock();
             
             level.destroyBlock(targetPos, false);
             
             // Jouer un son approprié
-            if (state.getBlock() instanceof GlassBlock || state.getBlock() instanceof GlassPaneBlock) {
+            if (block == Blocks.GLASS || block == Blocks.GLASS_PANE) {
                 level.playSound(null, targetPos, SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 1.0F, 1.0F);
                 
                 // Le bris de verre émet un son fort qui peut attirer plus de zombies
                 SoundDetectionSystem.emitSound(level, targetPos, 3, zombie);
-            } else if (state.getBlock() instanceof DoorBlock) {
-                level.playSound(null, targetPos, SoundEvents.WOODEN_DOOR_BREAK, SoundSource.BLOCKS, 1.0F, 1.0F);
+            } else if (block instanceof DoorBlock) {
+                level.playSound(null, targetPos, SoundEvents.WOODEN_DOOR_CLOSE, SoundSource.BLOCKS, 1.0F, 1.0F);
                 
                 // Casser une porte émet un son moyen
                 SoundDetectionSystem.emitSound(level, targetPos, 2, zombie);
@@ -169,7 +168,7 @@ public class BreakBlocksGoal extends Goal {
         }
         
         // Vérifier si le chemin est bloqué
-        return path.canReach() == false;
+        return !path.canReach();
     }
     
     /**
@@ -231,7 +230,7 @@ public class BreakBlocksGoal extends Goal {
         Block block = state.getBlock();
         
         // Tous les zombies peuvent casser les vitres
-        if ((block instanceof GlassBlock || block instanceof GlassPaneBlock) && ModConfig.COMMON.zombiesCanBreakGlass.get()) {
+        if ((block == Blocks.GLASS || block == Blocks.GLASS_PANE) && ModConfig.COMMON.zombiesCanBreakGlass.get()) {
             return true;
         }
         
@@ -241,7 +240,7 @@ public class BreakBlocksGoal extends Goal {
         }
         
         // Seules les brutes peuvent casser les portes en fer
-        if (block instanceof IronDoorBlock && zombie instanceof BruteZombieEntity && ModConfig.COMMON.brutesCanBreakIronDoors.get()) {
+        if (block == Blocks.IRON_DOOR && zombie instanceof BruteZombieEntity && ModConfig.COMMON.brutesCanBreakIronDoors.get()) {
             return true;
         }
         
@@ -257,11 +256,11 @@ public class BreakBlocksGoal extends Goal {
         Block block = state.getBlock();
         
         // Temps de base en fonction du type de bloc
-        if (block instanceof GlassBlock || block instanceof GlassPaneBlock) {
+        if (block == Blocks.GLASS || block == Blocks.GLASS_PANE) {
             return 60; // 3 secondes pour casser une vitre
         } else if (state.is(BlockTags.WOODEN_DOORS)) {
             return 100; // 5 secondes pour casser une porte en bois
-        } else if (block instanceof IronDoorBlock) {
+        } else if (block == Blocks.IRON_DOOR) {
             return 200; // 10 secondes pour casser une porte en fer (uniquement pour les brutes)
         }
         
