@@ -365,7 +365,7 @@ public class StructureCommand {
     }
 
     /**
-     * Affiche la zone de construction avec des blocs de laine rouge au sol uniquement
+     * Affiche la zone de construction avec des blocs de laine rouge dans le sol
      * @param player Joueur
      * @param session Session d'enregistrement
      */
@@ -375,12 +375,12 @@ public class StructureCommand {
         int width = session.width;
         int length = session.length;
         
-        // Placer de la laine rouge au sol pour marquer le périmètre
+        // Placer de la laine rouge dans le sol pour marquer le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    // Placer uniquement sur le périmètre au niveau du sol
-                    level.setBlock(startPos.offset(x, 0, z), Blocks.RED_WOOL.defaultBlockState(), 3);
+                    // Placer uniquement sur le périmètre au niveau du sol, un bloc plus bas
+                    level.setBlock(startPos.offset(x, -1, z), Blocks.RED_WOOL.defaultBlockState(), 3);
                 }
             }
         }
@@ -397,11 +397,11 @@ public class StructureCommand {
         int width = session.width;
         int length = session.length;
         
-        // Retirer tous les blocs de bordure au sol
+        // Retirer tous les blocs de bordure dans le sol
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    BlockPos pos = startPos.offset(x, 0, z);
+                    BlockPos pos = startPos.offset(x, -1, z);
                     if (level.getBlockState(pos).is(Blocks.RED_WOOL)) {
                         level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
                     }
