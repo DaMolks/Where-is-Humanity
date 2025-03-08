@@ -1,10 +1,13 @@
 package com.whereishumanity;
 
 import com.whereishumanity.biomes.BiomeRegistry;
+import com.whereishumanity.commands.StructureCommand;
 import com.whereishumanity.config.ModConfig;
 import com.whereishumanity.entities.EntityRegistry;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig.Type;
@@ -77,5 +80,19 @@ public class WhereIsHumanity {
             
             LOGGER.info("Configuration terminée");
         });
+    }
+    
+    /**
+     * Gestionnaire d'événement pour l'enregistrement des commandes
+     * Appelé automatiquement par Forge lors de l'enregistrement des commandes
+     * 
+     * @param event L'événement d'enregistrement des commandes
+     */
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        LOGGER.info("Enregistrement des commandes du mod");
+        
+        // Enregistrer la commande de structure
+        StructureCommand.register(event.getDispatcher());
     }
 }
