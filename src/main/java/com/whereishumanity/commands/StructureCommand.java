@@ -177,7 +177,8 @@ public class StructureCommand {
         while (groundPos.getY() > 0 && level.getBlockState(groundPos.below()).isAir()) {
             groundPos = groundPos.below();
         }
-        return groundPos;
+        // Maintenant, descendre d'un bloc supplémentaire pour être dans le sol plutôt que dessus
+        return groundPos.below();
     }
 
     /**
@@ -366,7 +367,7 @@ public class StructureCommand {
     }
 
     /**
-     * Affiche la zone de construction avec des blocs de laine rouge à la place du bloc sol
+     * Affiche la zone de construction avec des blocs de laine rouge dans le sol
      * @param player Joueur
      * @param session Session d'enregistrement
      */
@@ -376,34 +377,21 @@ public class StructureCommand {
         int width = session.width;
         int length = session.length;
         
-        // Message de debug pour aider à comprendre ce qui se passe
-        player.sendSystemMessage(Component.literal("Debug: Position de départ au sol: " + startPos.toShortString()));
-        
-        // Placer de la laine rouge SOUS le sol pour marquer le périmètre
+        // Placer de la laine rouge directement dans le sol sur le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    // Obtenir la position XZ mais avec la coordonnée Y du sol
-                    BlockPos perimeterPos = new BlockPos(
-                            startPos.getX() + x,
-                            startPos.getY(),
-                            startPos.getZ() + z
-                    );
+                    // Calculer la position exacte
+                    BlockPos blockPos = startPos.offset(x, 0, z);
                     
-                    // Remplacer le bloc qui est EXACTEMENT AU NIVEAU du sol par de la laine rouge
-                    BlockState originalState = level.getBlockState(perimeterPos);
-                    session.originalBlocks.put(perimeterPos, originalState);
-                    level.setBlock(perimeterPos, Blocks.RED_WOOL.defaultBlockState(), 3);
+                    // Sauvegarder le bloc existant pour pouvoir le restaurer plus tard
+                    session.originalBlocks.put(blockPos, level.getBlockState(blockPos));
                     
-                    // Message de debug
-                    WhereIsHumanity.LOGGER.info("Bloc placé à " + perimeterPos.toShortString() + 
-                            ", remplaçant " + originalState.getBlock().getName().getString());
+                    // Remplacer par la laine rouge
+                    level.setBlock(blockPos, Blocks.RED_WOOL.defaultBlockState(), 3);
                 }
             }
         }
-        
-        // Ajouter un message pour confirmer que le périmètre a été placé
-        player.sendSystemMessage(Component.literal("Périmètre de délimitation placé au niveau du sol"));
     }
 
     /**
