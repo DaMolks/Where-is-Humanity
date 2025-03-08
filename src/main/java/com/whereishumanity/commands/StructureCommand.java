@@ -1,6 +1,7 @@
 package com.whereishumanity.commands;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -54,7 +55,12 @@ public class StructureCommand {
                                 return builder.buildFuture();
                             })
                             .then(Commands.argument("name", StringArgumentType.word())
-                                .executes(StructureCommand::startRecording)
+                                .executes(StructureCommand::startRecordingDefault)
+                                .then(Commands.argument("width", IntegerArgumentType.integer(1, 64))
+                                    .then(Commands.argument("length", IntegerArgumentType.integer(1, 64))
+                                        .executes(StructureCommand::startRecordingCustom)
+                                    )
+                                )
                             )
                         )
                     )
@@ -72,15 +78,11 @@ public class StructureCommand {
     }
 
     /**
-     * Démarre l'enregistrement d'une nouvelle structure
+     * Démarre l'enregistrement d'une nouvelle structure avec les dimensions par défaut
      * @param context Contexte de la commande
      * @return Code de résultat
      */
-    private static int startRecording(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        ServerPlayer player = context.getSource().getPlayerOrException();
-        UUID playerId = player.getUUID();
-        
-        // Récupérer les arguments
+    private static int startRecordingDefault(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         String typeArg = StringArgumentType.getString(context, "type");
         String structureName = StringArgumentType.getString(context, "name");
         
@@ -93,17 +95,59 @@ public class StructureCommand {
             return 0;
         }
         
+        // Utiliser les dimensions par défaut
+        return startRecording(context, structureType, structureName, structureType.getWidth(), structureType.getLength());
+    }
+
+    /**
+     * Démarre l'enregistrement d'une nouvelle structure avec des dimensions personnalisées
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int startRecordingCustom(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        String typeArg = StringArgumentType.getString(context, "type");
+        String structureName = StringArgumentType.getString(context, "name");
+        int width = IntegerArgumentType.getInteger(context, "width");
+        int length = IntegerArgumentType.getInteger(context, "length");
+        
+        // Valider le type de structure
+        StructureType structureType;
+        try {
+            structureType = StructureType.valueOf(typeArg.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            context.getSource().sendFailure(Component.literal("Type de structure invalide: " + typeArg));
+            return 0;
+        }
+        
+        return startRecording(context, structureType, structureName, width, length);
+    }
+
+    /**
+     * Démarre l'enregistrement d'une nouvelle structure (logique commune)
+     * @param context Contexte de la commande
+     * @param structureType Type de structure
+     * @param structureName Nom de la structure
+     * @param width Largeur personnalisée
+     * @param length Longueur personnalisée
+     * @return Code de résultat
+     */
+    private static int startRecording(CommandContext<CommandSourceStack> context, StructureType structureType, 
+                                      String structureName, int width, int length) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        
         // Vérifier si le joueur a déjà une session active
         if (activeSessions.containsKey(playerId)) {
             context.getSource().sendFailure(Component.literal("Vous avez déjà une session d'enregistrement active. Utilisez /wih structure cancel pour l'annuler d'abord."));
             return 0;
         }
         
-        // Obtenir la position actuelle du joueur comme point de départ
-        BlockPos startPos = player.blockPosition();
+        // Obtenir la position au sol au lieu des pieds du joueur
+        BlockPos playerPos = player.blockPosition();
+        BlockPos groundPos = findGroundPosition(player.level(), playerPos);
         
-        // Créer une nouvelle session d'enregistrement
-        RecordingSession session = new RecordingSession(structureType, structureName, startPos);
+        // Créer une nouvelle session d'enregistrement avec dimensions personnalisées
+        RecordingSession session = new RecordingSession(structureType, structureName, groundPos, width, length);
         activeSessions.put(playerId, session);
         
         // Afficher la zone de construction au sol
@@ -112,11 +156,26 @@ public class StructureCommand {
         context.getSource().sendSuccess(() -> Component.literal("Session d'enregistrement démarrée pour une structure de type " + 
                 structureType.name() + " nommée '" + structureName + "'."), true);
         context.getSource().sendSuccess(() -> Component.literal("Dimensions au sol: " + 
-                structureType.getWidth() + "x" + structureType.getLength() + " (hauteur libre)"), true);
+                width + "x" + length + " (hauteur libre)"), true);
         context.getSource().sendSuccess(() -> Component.literal("Construisez votre structure dans la zone indiquée, puis utilisez /wih structure setentrance pour définir l'entrée."), true);
         context.getSource().sendSuccess(() -> Component.literal("Enfin, utilisez /wih structure save pour enregistrer la structure."), true);
                 
         return 1;
+    }
+
+    /**
+     * Trouve la position du sol sous le joueur
+     * @param level Le niveau du serveur
+     * @param playerPos Position du joueur
+     * @return Position du sol
+     */
+    private static BlockPos findGroundPosition(ServerLevel level, BlockPos playerPos) {
+        // Descendre jusqu'à trouver un bloc solide
+        BlockPos groundPos = playerPos;
+        while (groundPos.getY() > 0 && level.getBlockState(groundPos.below()).isAir()) {
+            groundPos = groundPos.below();
+        }
+        return groundPos;
     }
 
     /**
@@ -216,8 +275,8 @@ public class StructureCommand {
             Files.createDirectories(structuresDir);
             
             // Obtenir les dimensions au sol (X, Z)
-            int width = session.structureType.getWidth();
-            int length = session.structureType.getLength();
+            int width = session.width;
+            int length = session.length;
             
             // Détecter la hauteur réelle de la structure
             int height = detectStructureHeight(level, session.startPos, width, length);
@@ -312,24 +371,18 @@ public class StructureCommand {
     private static void displayBuildingArea(ServerPlayer player, RecordingSession session) {
         ServerLevel level = player.serverLevel();
         BlockPos startPos = session.startPos;
-        int width = session.structureType.getWidth();
-        int length = session.structureType.getLength();
+        int width = session.width;
+        int length = session.length;
         
         // Placer de la laine rouge au sol pour marquer le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    // Placer uniquement sur le périmètre
+                    // Placer uniquement sur le périmètre au niveau du sol
                     level.setBlock(startPos.offset(x, 0, z), Blocks.RED_WOOL.defaultBlockState(), 3);
                 }
             }
         }
-        
-        // Afficher les coins avec des blocs de diamant pour plus de visibilité
-        level.setBlock(startPos.offset(0, 0, 0), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
-        level.setBlock(startPos.offset(width - 1, 0, 0), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
-        level.setBlock(startPos.offset(0, 0, length - 1), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
-        level.setBlock(startPos.offset(width - 1, 0, length - 1), Blocks.DIAMOND_BLOCK.defaultBlockState(), 3);
     }
 
     /**
@@ -340,16 +393,15 @@ public class StructureCommand {
     private static void clearBuildingArea(ServerPlayer player, RecordingSession session) {
         ServerLevel level = player.serverLevel();
         BlockPos startPos = session.startPos;
-        int width = session.structureType.getWidth();
-        int length = session.structureType.getLength();
+        int width = session.width;
+        int length = session.length;
         
         // Retirer tous les blocs de bordure au sol
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
                     BlockPos pos = startPos.offset(x, 0, z);
-                    if (level.getBlockState(pos).is(Blocks.RED_WOOL) || 
-                        level.getBlockState(pos).is(Blocks.DIAMOND_BLOCK)) {
+                    if (level.getBlockState(pos).is(Blocks.RED_WOOL)) {
                         level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
                     }
                 }
@@ -373,8 +425,8 @@ public class StructureCommand {
      */
     private static boolean isWithinBuildingAreaXZ(BlockPos pos, RecordingSession session) {
         BlockPos startPos = session.startPos;
-        int width = session.structureType.getWidth();
-        int length = session.structureType.getLength();
+        int width = session.width;
+        int length = session.length;
         
         return pos.getX() >= startPos.getX() && pos.getX() < startPos.getX() + width &&
                pos.getZ() >= startPos.getZ() && pos.getZ() < startPos.getZ() + length;
@@ -388,11 +440,15 @@ public class StructureCommand {
         public final String structureName;
         public final BlockPos startPos;
         public BlockPos entrancePos;
+        public final int width;
+        public final int length;
         
-        public RecordingSession(StructureType structureType, String structureName, BlockPos startPos) {
+        public RecordingSession(StructureType structureType, String structureName, BlockPos startPos, int width, int length) {
             this.structureType = structureType;
             this.structureName = structureName;
             this.startPos = startPos;
+            this.width = width;
+            this.length = length;
         }
     }
 }
