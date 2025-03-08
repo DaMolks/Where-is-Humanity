@@ -18,10 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.Mirror;
-import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
@@ -29,18 +26,109 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
-import java.util.stream.Stream;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Commande pour enregistrer et gérer les structures personnalisées
+ * Cette classe gère l'enregistrement et la sauvegarde des structures
  */
 public class StructureCommand {
 
     // Stockage des sessions d'enregistrement actives
     private static final Map<UUID, RecordingSession> activeSessions = new HashMap<>();
 
-    // Méthode register() et autres méthodes précédentes omises pour plus de clarté
+    /**
+     * Enregistre les commandes dans le dispatcher
+     * @param dispatcher Le dispatcher de commandes
+     */
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(
+            Commands.literal("wih")
+                .requires(source -> source.hasPermission(2)) // Niveau op 2 minimum
+                .then(Commands.literal("structure")
+                    // Commande d'enregistrement
+                    .then(Commands.literal("record")
+                        .then(Commands.argument("type", StringArgumentType.word())
+                            .suggests((context, builder) -> {
+                                for (StructureType type : StructureType.values()) {
+                                    builder.suggest(type.name().toLowerCase());
+                                }
+                                return builder.buildFuture();
+                            })
+                            .then(Commands.argument("name", StringArgumentType.word())
+                                .executes(StructureCommand::startRecordingDefault)
+                                .then(Commands.argument("width", IntegerArgumentType.integer(1, 64))
+                                    .then(Commands.argument("length", IntegerArgumentType.integer(1, 64))
+                                        .executes(StructureCommand::startRecordingCustom)
+                                    )
+                                )
+                            )
+                        )
+                    )
+                    // Commande d'annulation
+                    .then(Commands.literal("cancel")
+                        .executes(StructureCommand::cancelRecording)
+                    )
+                    // Commande de sauvegarde
+                    .then(Commands.literal("save")
+                        .executes(StructureCommand::saveStructure)
+                    )
+                    // Commande de définition d'entrée
+                    .then(Commands.literal("setentrance")
+                        .executes(StructureCommand::setEntrancePosition)
+                    )
+                    // Délégation aux autres commandes
+                    .then(StructureUtilCommands.register())
+                )
+        );
+    }
+
+    /**
+     * Démarre l'enregistrement d'une nouvelle structure avec les dimensions par défaut
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int startRecordingDefault(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        String typeArg = StringArgumentType.getString(context, "type");
+        String structureName = StringArgumentType.getString(context, "name");
+        
+        // Valider le type de structure
+        StructureType structureType;
+        try {
+            structureType = StructureType.valueOf(typeArg.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            context.getSource().sendFailure(Component.literal("Type de structure invalide: " + typeArg));
+            return 0;
+        }
+        
+        // Utiliser les dimensions par défaut
+        return startRecording(context, structureType, structureName, structureType.getWidth(), structureType.getLength());
+    }
+
+    /**
+     * Démarre l'enregistrement d'une nouvelle structure avec des dimensions personnalisées
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int startRecordingCustom(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        String typeArg = StringArgumentType.getString(context, "type");
+        String structureName = StringArgumentType.getString(context, "name");
+        int width = IntegerArgumentType.getInteger(context, "width");
+        int length = IntegerArgumentType.getInteger(context, "length");
+        
+        // Valider le type de structure
+        StructureType structureType;
+        try {
+            structureType = StructureType.valueOf(typeArg.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            context.getSource().sendFailure(Component.literal("Type de structure invalide: " + typeArg));
+            return 0;
+        }
+        
+        return startRecording(context, structureType, structureName, width, length);
+    }
 
     /**
      * Démarre l'enregistrement d'une nouvelle structure (logique commune)
@@ -100,145 +188,158 @@ public class StructureCommand {
     }
 
     /**
-     * Supprime une structure enregistrée
+     * Annule la session d'enregistrement active
      * @param context Contexte de la commande
      * @return Code de résultat
      */
-    private static int deleteStructure(CommandContext<CommandSourceStack> context) {
-        String type = StringArgumentType.getString(context, "type");
-        String name = StringArgumentType.getString(context, "name");
-        
-        Path structurePath = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase(), name + ".nbt");
-        Path metadataPath = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase(), name + ".json");
-        
-        boolean structureDeleted = false;
-        boolean metadataDeleted = false;
-        
-        try {
-            if (Files.exists(structurePath)) {
-                Files.delete(structurePath);
-                structureDeleted = true;
-            }
-            
-            if (Files.exists(metadataPath)) {
-                Files.delete(metadataPath);
-                metadataDeleted = true;
-            }
-            
-            if (structureDeleted || metadataDeleted) {
-                context.getSource().sendSuccess(() -> Component.literal("Structure '" + name + "' supprimée avec succès."), true);
-                return 1;
-            } else {
-                context.getSource().sendFailure(Component.literal("La structure '" + name + "' n'existe pas dans le dossier " + type + "."));
-                return 0;
-            }
-        } catch (IOException e) {
-            WhereIsHumanity.LOGGER.error("Erreur lors de la suppression de la structure", e);
-            context.getSource().sendFailure(Component.literal("Erreur lors de la suppression de la structure: " + e.getMessage()));
-            return 0;
-        }
-    }
-
-    /**
-     * Place une structure enregistrée à la position du joueur
-     * @param context Contexte de la commande
-     * @return Code de résultat
-     */
-    private static int placeStructure(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        return placeStructureWithRotationInternal(context, 0);
-    }
-
-    /**
-     * Place une structure enregistrée à la position du joueur avec une rotation spécifiée
-     * @param context Contexte de la commande
-     * @return Code de résultat
-     */
-    private static int placeStructureWithRotation(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        String rotationStr = StringArgumentType.getString(context, "rotation");
-        int rotation;
-        
-        try {
-            rotation = Integer.parseInt(rotationStr);
-            // Valider la rotation (0, 90, 180, 270)
-            if (rotation != 0 && rotation != 90 && rotation != 180 && rotation != 270) {
-                context.getSource().sendFailure(Component.literal("Rotation invalide. Utilisez 0, 90, 180 ou 270."));
-                return 0;
-            }
-        } catch (NumberFormatException e) {
-            context.getSource().sendFailure(Component.literal("Rotation invalide. Utilisez 0, 90, 180 ou 270."));
-            return 0;
-        }
-        
-        return placeStructureWithRotationInternal(context, rotation);
-    }
-
-    /**
-     * Implémentation commune pour placer une structure avec une rotation
-     * @param context Contexte de la commande
-     * @param rotationDegrees Degrés de rotation (0, 90, 180, 270)
-     * @return Code de résultat
-     */
-    private static int placeStructureWithRotationInternal(CommandContext<CommandSourceStack> context, int rotationDegrees) throws CommandSyntaxException {
+    private static int cancelRecording(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        
+        // Vérifier si le joueur a une session active
+        if (!activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous n'avez pas de session d'enregistrement active."));
+            return 0;
+        }
+        
+        // Supprimer les marqueurs de la zone de construction
+        RecordingSession session = activeSessions.get(playerId);
+        clearBuildingArea(player, session);
+        
+        // Supprimer la session
+        activeSessions.remove(playerId);
+        
+        context.getSource().sendSuccess(() -> Component.literal("Session d'enregistrement annulée."), true);
+        
+        return 1;
+    }
+
+    /**
+     * Définit la position de l'entrée de la structure
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int setEntrancePosition(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        
+        // Vérifier si le joueur a une session active
+        if (!activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous n'avez pas de session d'enregistrement active."));
+            return 0;
+        }
+        
+        RecordingSession session = activeSessions.get(playerId);
+        
+        // Utiliser le bloc sur lequel le joueur se trouve
+        BlockPos entrancePos = player.blockPosition();
+        
+        // Vérifier si la position est dans la zone de construction au sol
+        if (!isWithinBuildingAreaXZ(entrancePos, session)) {
+            context.getSource().sendFailure(Component.literal("La position d'entrée doit être dans la zone de construction (vérification au sol uniquement)."));
+            return 0;
+        }
+        
+        // Enregistrer la position relative par rapport au coin de la structure
+        BlockPos relativePos = entrancePos.subtract(session.startPos);
+        session.entrancePos = relativePos;
+        
+        // Marquer l'entrée avec un bloc spécial
+        player.level().setBlock(entrancePos, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+        
+        context.getSource().sendSuccess(() -> Component.literal("Position d'entrée définie à " + 
+                relativePos.getX() + ", " + relativePos.getY() + ", " + relativePos.getZ() + " (relative à l'origine)."), true);
+        
+        return 1;
+    }
+
+    /**
+     * Enregistre la structure dans un fichier
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int saveStructure(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
         ServerLevel level = player.serverLevel();
-        String type = StringArgumentType.getString(context, "type");
-        String name = StringArgumentType.getString(context, "name");
         
-        // Chemin vers les fichiers de structure
-        Path structurePath = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase(), name + ".nbt");
-        Path metadataPath = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase(), name + ".json");
+        // Vérifier si le joueur a une session active
+        if (!activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous n'avez pas de session d'enregistrement active."));
+            return 0;
+        }
         
-        if (!Files.exists(structurePath)) {
-            context.getSource().sendFailure(Component.literal("La structure '" + name + "' n'existe pas dans le dossier " + type + "."));
+        RecordingSession session = activeSessions.get(playerId);
+        
+        // Vérifier si l'entrée a été définie
+        if (session.entrancePos == null) {
+            context.getSource().sendFailure(Component.literal("Vous devez d'abord définir la position d'entrée avec /wih structure setentrance"));
             return 0;
         }
         
         try {
-            // Charger la structure
+            // Créer le dossier de structures s'il n'existe pas
+            Path structuresDir = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", 
+                    session.structureType.getCategory().toLowerCase());
+            Files.createDirectories(structuresDir);
+            
+            // Obtenir les dimensions au sol (X, Z)
+            int width = session.width;
+            int length = session.length;
+            
+            // Détecter la hauteur réelle de la structure
+            int height = detectStructureHeight(level, session.startPos, width, length);
+            
+            // Créer un template de structure
             StructureTemplateManager templateManager = level.getStructureManager();
-            StructureTemplate template = templateManager.getOrCreate(new ResourceLocation(WhereIsHumanity.MOD_ID, name));
+            ResourceLocation structureId = new ResourceLocation(WhereIsHumanity.MOD_ID, session.structureName);
+            StructureTemplate template = templateManager.getOrCreate(structureId);
             
-            if (template == null) {
-                // Charger manuellement depuis le fichier
-                CompoundTag nbt = NbtIo.readCompressed(structurePath.toFile());
-                template = new StructureTemplate();
-                template.load(nbt);
-            }
+            // Définir la zone à enregistrer avec la hauteur détectée
+            BlockPos endPos = session.startPos.offset(width - 1, height - 1, length - 1);
+            template.fillFromWorld(level, session.startPos, new BlockPos(width, height, length), true, Blocks.AIR);
             
-            // Obtenir la position du joueur comme point de départ
-            BlockPos playerPos = player.blockPosition();
+            // Enregistrer la structure
+            Path structurePath = structuresDir.resolve(session.structureName + ".nbt");
+            CompoundTag nbt = template.save(new CompoundTag());
+            NbtIo.writeCompressed(nbt, structurePath.toFile());
             
-            // Convertir les degrés en rotation Minecraft
-            Rotation rotation = Rotation.NONE;
-            switch (rotationDegrees) {
-                case 90:
-                    rotation = Rotation.CLOCKWISE_90;
-                    break;
-                case 180:
-                    rotation = Rotation.CLOCKWISE_180;
-                    break;
-                case 270:
-                    rotation = Rotation.COUNTERCLOCKWISE_90;
-                    break;
-            }
+            // Enregistrer les métadonnées (entrée, etc.)
+            Path metadataPath = structuresDir.resolve(session.structureName + ".json");
+            String metadata = String.format(
+                    "{\n" +
+                    "  \"type\": \"%s\",\n" +
+                    "  \"entrance\": {\n" +
+                    "    \"x\": %d,\n" +
+                    "    \"y\": %d,\n" +
+                    "    \"z\": %d\n" +
+                    "  },\n" +
+                    "  \"dimensions\": {\n" +
+                    "    \"width\": %d,\n" +
+                    "    \"height\": %d,\n" +
+                    "    \"length\": %d\n" +
+                    "  }\n" +
+                    "}",
+                    session.structureType.name(),
+                    session.entrancePos.getX(), session.entrancePos.getY(), session.entrancePos.getZ(),
+                    width, height, length
+            );
+            Files.write(metadataPath, metadata.getBytes());
             
-            // Paramètres de placement
-            StructurePlaceSettings placeSettings = new StructurePlaceSettings()
-                    .setRotation(rotation)
-                    .setMirror(Mirror.NONE)
-                    .setIgnoreEntities(false);
+            // Nettoyer la zone
+            clearBuildingArea(player, session);
             
-            // Placer la structure
-            template.placeInWorld(level, playerPos, playerPos, placeSettings, level.random, 2);
+            // Supprimer la session
+            activeSessions.remove(playerId);
             
-            context.getSource().sendSuccess(() -> Component.literal("Structure '" + name + "' placée avec succès à la position " + 
-                    playerPos.getX() + ", " + playerPos.getY() + ", " + playerPos.getZ() + 
-                    (rotationDegrees > 0 ? " avec rotation de " + rotationDegrees + "°" : "") + "."), true);
+            context.getSource().sendSuccess(() -> Component.literal("Structure '" + session.structureName + 
+                    "' enregistrée avec succès dans " + structurePath.toString()), true);
+            context.getSource().sendSuccess(() -> Component.literal("Hauteur détectée automatiquement: " + height + " blocs"), true);
             
             return 1;
-        } catch (Exception e) {
-            WhereIsHumanity.LOGGER.error("Erreur lors du placement de la structure", e);
-            context.getSource().sendFailure(Component.literal("Erreur lors du placement de la structure: " + e.getMessage()));
+        } catch (IOException e) {
+            WhereIsHumanity.LOGGER.error("Erreur lors de l'enregistrement de la structure", e);
+            context.getSource().sendFailure(Component.literal("Erreur lors de l'enregistrement de la structure: " + e.getMessage()));
             return 0;
         }
     }
@@ -337,50 +438,9 @@ public class StructureCommand {
     }
 
     /**
-     * Liste les dossiers de types de structures disponibles
-     * @return Liste des noms de dossiers (types)
-     * @throws IOException Si une erreur survient lors de la lecture des dossiers
-     */
-    private static List<String> listStructureDirectories() throws IOException {
-        Path structuresDir = Paths.get("config", WhereIsHumanity.MOD_ID, "structures");
-        if (!Files.exists(structuresDir)) {
-            return Collections.emptyList();
-        }
-
-        List<String> directories = new ArrayList<>();
-        try (Stream<Path> paths = Files.list(structuresDir)) {
-            paths.filter(Files::isDirectory)
-                 .map(path -> path.getFileName().toString())
-                 .forEach(directories::add);
-        }
-        return directories;
-    }
-
-    /**
-     * Liste les fichiers de structures pour un type donné
-     * @param type Le type de structure
-     * @return Liste des noms de structures (sans extension)
-     * @throws IOException Si une erreur survient lors de la lecture des fichiers
-     */
-    private static List<String> listStructureFiles(String type) throws IOException {
-        Path typeDir = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase());
-        if (!Files.exists(typeDir)) {
-            return Collections.emptyList();
-        }
-
-        List<String> structures = new ArrayList<>();
-        try (Stream<Path> paths = Files.list(typeDir)) {
-            paths.filter(path -> path.toString().endsWith(".nbt"))
-                 .map(path -> path.getFileName().toString().replace(".nbt", ""))
-                 .forEach(structures::add);
-        }
-        return structures;
-    }
-
-    /**
      * Classe interne pour stocker les informations de session d'enregistrement
      */
-    private static class RecordingSession {
+    public static class RecordingSession {
         public final StructureType structureType;
         public final String structureName;
         public final BlockPos startPos;
