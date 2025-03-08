@@ -25,6 +25,8 @@ public class CityBiome {
     
     /**
      * Crée et configure le biome de ville abandonnée
+     * @param placedFeatureGetter Le getter pour les features placées
+     * @param carverGetter Le getter pour les carvers configurés
      * @return Le biome configuré
      */
     public static Biome createBiome(HolderGetter<PlacedFeature> placedFeatureGetter, 
