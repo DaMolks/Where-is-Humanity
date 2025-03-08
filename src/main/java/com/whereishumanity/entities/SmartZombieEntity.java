@@ -19,12 +19,14 @@ import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.world.entity.ai.goal.MoveThroughVillageGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
-import net.minecraft.world.entity.ai.goal.ZombieAttackGoal;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+
+import java.util.List;
 
 /**
  * Classe de base pour les zombies intelligents
@@ -131,16 +133,20 @@ public class SmartZombieEntity extends Zombie {
         if (target == null) return;
         
         double alertRadius = ModConfig.COMMON.zombieAlertRadius.get();
-        level().getNearbyEntities(
-                SmartZombieEntity.class,
-                null,
-                this,
-                this.getBoundingBox().inflate(alertRadius),
-                entity -> entity != this
-        ).forEach(zombie -> {
-            zombie.setTarget(target);
-            zombie.setAlerted(true);
-        });
+        AABB alertBox = this.getBoundingBox().inflate(alertRadius);
+        
+        // Récupérer tous les zombies à proximité
+        List<SmartZombieEntity> nearbyZombies = level().getEntitiesOfClass(
+            SmartZombieEntity.class,
+            alertBox,
+            entity -> entity != this
+        );
+        
+        // Alerter les zombies proches
+        for (SmartZombieEntity nearbyZombie : nearbyZombies) {
+            nearbyZombie.setTarget(target);
+            nearbyZombie.setAlerted(true);
+        }
     }
     
     /**
