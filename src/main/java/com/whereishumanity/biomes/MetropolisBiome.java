@@ -2,12 +2,8 @@ package com.whereishumanity.biomes;
 
 import com.whereishumanity.entities.EntityRegistry;
 import net.minecraft.core.HolderGetter;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.data.worldgen.BiomeDefaultFeatures;
 import net.minecraft.data.worldgen.placement.VegetationPlacements;
-import net.minecraft.sounds.Music;
-import net.minecraft.sounds.Musics;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -15,10 +11,6 @@ import net.minecraft.world.level.biome.*;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.carver.ConfiguredWorldCarver;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
-import net.minecraftforge.registries.ForgeRegistries;
-
-import javax.annotation.Nullable;
-import java.util.Optional;
 
 /**
  * Biome de métropole abandonnée
@@ -122,9 +114,9 @@ public class MetropolisBiome {
                 .build();
         
         return new Biome.Builder()
+                .precipitation(Biome.Precipitation.RAIN)
                 .temperature(0.5F) // Température modérée
                 .downfall(0.5F) // Précipitations modérées
-                .hasPrecipitation(true)
                 .specialEffects(effects)
                 .mobSpawnSettings(spawnBuilder.build())
                 .generationSettings(biomeBuilder.build())
