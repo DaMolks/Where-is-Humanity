@@ -112,8 +112,8 @@ public class VillageBiome {
                 .backgroundMusic(null); // Pas de musique
         
         // Construire et retourner le biome complet
-        return new Biome.Builder()
-                .precipitation(Biome.Precipitation.RAIN)
+        return new Biome.BiomeBuilder()
+                .hasPrecipitation(true)
                 .temperature(0.7F) // Température plus élevée
                 .downfall(0.7F) // Précipitations plus élevées
                 .specialEffects(effectsBuilder.build())
