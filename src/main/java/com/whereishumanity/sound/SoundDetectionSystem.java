@@ -5,12 +5,16 @@ import com.whereishumanity.config.ModConfig;
 import com.whereishumanity.entities.SmartZombieEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
@@ -118,8 +122,14 @@ public class SoundDetectionSystem {
                 soundEvent.getPosition().getX() + radius, soundEvent.getPosition().getY() + radius, soundEvent.getPosition().getZ() + radius
         );
         
+        // Récupérer tous les zombies intelligents dans la zone
+        List<SmartZombieEntity> zombies = level.getEntitiesOfClass(
+            SmartZombieEntity.class,
+            detectionBox
+        );
+        
         // Notifier tous les zombies intelligents dans la zone
-        level.getEntitiesOfClass(SmartZombieEntity.class, detectionBox).forEach(zombie -> {
+        for (SmartZombieEntity zombie : zombies) {
             // Vérifier la ligne de vue si nécessaire pour les sons faibles
             if (soundEvent.getSoundLevel() == 1) {
                 if (hasLineOfSight(level, zombie.blockPosition(), soundEvent.getPosition())) {
@@ -128,7 +138,7 @@ public class SoundDetectionSystem {
             } else {
                 zombie.onSoundDetected(soundEvent.getPosition(), soundEvent.getSoundLevel());
             }
-        });
+        }
     }
     
     /**
@@ -142,12 +152,14 @@ public class SoundDetectionSystem {
         Vec3 start = new Vec3(from.getX() + 0.5, from.getY() + 0.5, from.getZ() + 0.5);
         Vec3 end = new Vec3(to.getX() + 0.5, to.getY() + 0.5, to.getZ() + 0.5);
         
-        return level.clip(net.minecraft.world.level.ClipContext.Block.COLLIDER, 
-                new net.minecraft.world.level.ClipContext(
-                        start, end, 
-                        net.minecraft.world.level.ClipContext.Block.COLLIDER, 
-                        net.minecraft.world.level.ClipContext.Fluid.NONE, 
-                        null)).getType() == net.minecraft.world.phys.HitResult.Type.MISS;
+        ClipContext context = new ClipContext(
+            start, end, 
+            ClipContext.Block.COLLIDER, 
+            ClipContext.Fluid.NONE, 
+            null
+        );
+        
+        return level.clip(context).getType() == net.minecraft.world.phys.HitResult.Type.MISS;
     }
     
     /**
@@ -194,12 +206,21 @@ public class SoundDetectionSystem {
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         // Les sons varient selon le matériau
-        int soundLevel = switch(event.getState().getSoundType().getBreakSound().getPath()) {
-            case "block.glass.break" -> 3; // Bris de verre = son fort
-            case "block.wood.break" -> 2;  // Bois = son moyen
-            case "block.stone.break" -> 2; // Pierre = son moyen
-            default -> 1;                  // Autres = son faible
-        };
+        Block block = event.getState().getBlock();
+        int soundLevel;
+        
+        if (block == Blocks.GLASS || block == Blocks.GLASS_PANE) {
+            soundLevel = 3; // Bris de verre = son fort
+        } else if (block == Blocks.OAK_DOOR || block == Blocks.SPRUCE_DOOR || 
+                  block == Blocks.BIRCH_DOOR || block == Blocks.JUNGLE_DOOR ||
+                  block == Blocks.ACACIA_DOOR || block == Blocks.DARK_OAK_DOOR ||
+                  block == Blocks.CRIMSON_DOOR || block == Blocks.WARPED_DOOR) {
+            soundLevel = 2; // Portes en bois = son moyen
+        } else if (block == Blocks.STONE || block == Blocks.COBBLESTONE) {
+            soundLevel = 2; // Pierre = son moyen
+        } else {
+            soundLevel = 1; // Autres = son faible
+        }
         
         emitSound(event.getLevel().getLevel(), event.getPos(), soundLevel, event.getPlayer());
     }
@@ -207,7 +228,9 @@ public class SoundDetectionSystem {
     @SubscribeEvent
     public static void onExplosion(ExplosionEvent.Detonate event) {
         // Les explosions créent des sons forts
-        emitSound(event.getLevel(), new BlockPos(event.getExplosion().getPosition()), 3, event.getExplosion().getSourceMob());
+        Vec3 pos = event.getExplosion().getPosition();
+        BlockPos blockPos = new BlockPos((int)pos.x, (int)pos.y, (int)pos.z);
+        emitSound(event.getLevel(), blockPos, 3, null);
     }
     
     @SubscribeEvent
