@@ -16,6 +16,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
@@ -165,11 +166,11 @@ public class StructureCommand {
 
     /**
      * Trouve la position du sol sous le joueur
-     * @param level Le niveau du serveur
+     * @param level Le niveau
      * @param playerPos Position du joueur
      * @return Position du sol
      */
-    private static BlockPos findGroundPosition(ServerLevel level, BlockPos playerPos) {
+    private static BlockPos findGroundPosition(Level level, BlockPos playerPos) {
         // Descendre jusqu'à trouver un bloc solide
         BlockPos groundPos = playerPos;
         while (groundPos.getY() > 0 && level.getBlockState(groundPos.below()).isAir()) {
