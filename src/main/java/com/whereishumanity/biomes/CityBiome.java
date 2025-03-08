@@ -95,9 +95,9 @@ public class CityBiome {
         
         // Construire et retourner le biome complet
         return new Biome.Builder()
+                .precipitation(Biome.Precipitation.RAIN)
                 .temperature(0.6F) // Température légèrement plus élevée
                 .downfall(0.6F) // Précipitations légèrement plus élevées
-                .hasPrecipitation(true)
                 .specialEffects(effectsBuilder.build())
                 .mobSpawnSettings(spawnBuilder.build())
                 .generationSettings(biomeBuilder.build())
