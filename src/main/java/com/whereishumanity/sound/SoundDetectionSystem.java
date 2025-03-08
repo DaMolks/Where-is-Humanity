@@ -6,6 +6,7 @@ import com.whereishumanity.entities.SmartZombieEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -222,8 +223,11 @@ public class SoundDetectionSystem {
             soundLevel = 1; // Autres = son faible
         }
         
-        // Corriger l'appel à getLevel() qui était la source de l'erreur
-        emitSound(event.getLevel(), event.getPos(), soundLevel, event.getPlayer());
+        // Cast LevelAccessor to Level - nous savons que c'est sécuritaire dans ce contexte
+        // Si cela ne fonctionne pas dans certains cas, on pourrait ajouter une vérification supplémentaire
+        if (event.getLevel() instanceof Level level) {
+            emitSound(level, event.getPos(), soundLevel, event.getPlayer());
+        }
     }
     
     @SubscribeEvent
