@@ -8,9 +8,11 @@ import com.whereishumanity.WhereIsHumanity;
 import com.whereishumanity.worldgen.structures.StructureType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
@@ -220,7 +222,8 @@ public class StructureCommand {
             
             // Créer un template de structure
             StructureTemplateManager templateManager = level.getStructureManager();
-            StructureTemplate template = templateManager.getOrCreate(session.structureName);
+            ResourceLocation structureId = new ResourceLocation(WhereIsHumanity.MOD_ID, session.structureName);
+            StructureTemplate template = templateManager.getOrCreate(structureId);
             
             // Définir la zone à enregistrer
             BlockPos endPos = session.startPos.offset(width - 1, height - 1, length - 1);
@@ -228,7 +231,8 @@ public class StructureCommand {
             
             // Enregistrer la structure
             Path structurePath = structuresDir.resolve(session.structureName + ".nbt");
-            template.save(structurePath.toFile());
+            CompoundTag nbt = template.save(new CompoundTag());
+            NbtIo.writeCompressed(nbt, structurePath.toFile());
             
             // Enregistrer les métadonnées (entrée, etc.)
             Path metadataPath = structuresDir.resolve(session.structureName + ".json");
