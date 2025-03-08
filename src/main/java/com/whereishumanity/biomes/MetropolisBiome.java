@@ -113,8 +113,8 @@ public class MetropolisBiome {
                 .backgroundMusic(null) // Pas de musique
                 .build();
         
-        return new Biome.Builder()
-                .precipitation(Biome.Precipitation.RAIN)
+        return new Biome.BiomeBuilder()
+                .hasPrecipitation(true)
                 .temperature(0.5F) // Température modérée
                 .downfall(0.5F) // Précipitations modérées
                 .specialEffects(effects)
