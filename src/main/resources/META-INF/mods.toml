@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="whereishumanity"
+version="0.1.0"
+displayName="Where is Humanity"
+description='''
+Mod ajoutant des biomes de villes abandonnées et des zombies intelligents.
+Survivez dans des environnements urbains désertés face à des hordes de zombies qui réagissent aux sons.
+'''
+
+[[dependencies.whereishumanity]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.whereishumanity]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1]"
+    ordering="NONE"
+    side="BOTH"
