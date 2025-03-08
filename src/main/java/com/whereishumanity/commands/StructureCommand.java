@@ -376,44 +376,34 @@ public class StructureCommand {
         int width = session.width;
         int length = session.length;
         
-        // Placer de la laine rouge à la place des blocs du sol pour marquer le périmètre
+        // Message de debug pour aider à comprendre ce qui se passe
+        player.sendSystemMessage(Component.literal("Debug: Position de départ au sol: " + startPos.toShortString()));
+        
+        // Placer de la laine rouge SOUS le sol pour marquer le périmètre
         for (int x = 0; x < width; x++) {
             for (int z = 0; z < length; z++) {
                 if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
-                    // Trouver le bloc de sol pour chaque position du périmètre
-                    BlockPos topSoilPos = findTopSoilPosition(level, startPos.offset(x, 0, z));
+                    // Obtenir la position XZ mais avec la coordonnée Y du sol
+                    BlockPos perimeterPos = new BlockPos(
+                            startPos.getX() + x,
+                            startPos.getY(),
+                            startPos.getZ() + z
+                    );
                     
-                    // Sauvegarder le bloc existant pour pouvoir le restaurer plus tard
-                    session.originalBlocks.put(topSoilPos, level.getBlockState(topSoilPos));
+                    // Remplacer le bloc qui est EXACTEMENT AU NIVEAU du sol par de la laine rouge
+                    BlockState originalState = level.getBlockState(perimeterPos);
+                    session.originalBlocks.put(perimeterPos, originalState);
+                    level.setBlock(perimeterPos, Blocks.RED_WOOL.defaultBlockState(), 3);
                     
-                    // Remplacer par la laine rouge
-                    level.setBlock(topSoilPos, Blocks.RED_WOOL.defaultBlockState(), 3);
+                    // Message de debug
+                    WhereIsHumanity.LOGGER.info("Bloc placé à " + perimeterPos.toShortString() + 
+                            ", remplaçant " + originalState.getBlock().getName().getString());
                 }
             }
         }
-    }
-
-    /**
-     * Trouve la position du bloc de sol le plus haut (non-air) à une position X,Z donnée
-     * @param level Le niveau
-     * @param startPos Position de départ (x, y, z)
-     * @return Position du bloc de sol
-     */
-    private static BlockPos findTopSoilPosition(Level level, BlockPos startPos) {
-        // Commencer par descendre jusqu'à trouver un bloc solide
-        BlockPos soilPos = startPos;
         
-        // Si on est déjà sur un bloc solide, utiliser cette position
-        if (!level.getBlockState(soilPos).isAir()) {
-            return soilPos;
-        }
-        
-        // Sinon, descendre jusqu'à trouver un bloc non-air
-        while (soilPos.getY() > 0 && level.getBlockState(soilPos).isAir()) {
-            soilPos = soilPos.below();
-        }
-        
-        return soilPos;
+        // Ajouter un message pour confirmer que le périmètre a été placé
+        player.sendSystemMessage(Component.literal("Périmètre de délimitation placé au niveau du sol"));
     }
 
     /**
