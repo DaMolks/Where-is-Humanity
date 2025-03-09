@@ -284,12 +284,9 @@ public class StructureUtilCommands {
             // Charger la structure depuis le fichier
             CompoundTag structureTag = NbtIo.readCompressed(structurePath.toFile());
             
-            // Enregistrer temporairement la structure dans le manager
-            StructureTemplate template = templateManager.getOrCreate(structureId);
-            templateManager.save(structureId, structureTag);
-            
-            // Récupérer la version fraîchement chargée
-            template = templateManager.getOrCreate(structureId);
+            // Créer une nouvelle instance du template à partir des données NBT
+            StructureTemplate template = new StructureTemplate();
+            template.load(structureTag);
             
             // Placer la structure
             template.placeInWorld(level, playerPos, playerPos, placeSettings, level.random, 2);
