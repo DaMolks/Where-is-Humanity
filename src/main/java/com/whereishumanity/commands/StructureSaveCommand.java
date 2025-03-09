@@ -68,7 +68,7 @@ public class StructureSaveCommand {
         
         // Vérifier si l'entrée a été définie
         if (session.entrancePos == null) {
-            context.getSource().sendFailure(Component.literal("Vous devez d'abord définir la position d'entrée avec /wih structure setentrance"));
+            context.getSource().sendFailure(Component.literal("Vous devez d'abord définir la façade avec /wih structure setentrance <direction>"));
             return 0;
         }
         
@@ -139,6 +139,7 @@ public class StructureSaveCommand {
                     "    \\\"y\\\": %d,\\n" +
                     "    \\\"z\\\": %d\\n" +
                     "  },\\n" +
+                    "  \\\"facingDirection\\\": \\\"%s\\\",\\n" +
                     "  \\\"dimensions\\\": {\\n" +
                     "    \\\"width\\\": %d,\\n" +
                     "    \\\"height\\\": %d,\\n" +
@@ -147,6 +148,7 @@ public class StructureSaveCommand {
                     "}",
                     session.structureType.name(),
                     session.entrancePos.getX(), session.entrancePos.getY(), session.entrancePos.getZ(),
+                    session.entranceDirection.name().toLowerCase(),
                     width, height, length
             );
             Files.write(metadataPath, metadata.getBytes());
@@ -160,6 +162,7 @@ public class StructureSaveCommand {
             context.getSource().sendSuccess(() -> Component.literal("Structure '" + session.structureName + 
                     "' enregistrée avec succès dans " + structurePath.toString()), true);
             context.getSource().sendSuccess(() -> Component.literal("Hauteur détectée automatiquement: " + height + " blocs"), true);
+            context.getSource().sendSuccess(() -> Component.literal("Façade orientée vers: " + session.entranceDirection.name().toLowerCase()), true);
             
             return 1;
         } catch (IOException e) {
