@@ -8,14 +8,12 @@ import com.whereishumanity.WhereIsHumanity;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -114,10 +112,10 @@ public class StructureUtilCommands {
                 )
             );
         
-        // Création d'un nœud commun qui contient à la fois delete et place
-        return Commands.literal("util")
-            .then(deleteCommand)
-            .then(placeCommand);
+        // Ajouter les commandes directement au noeud principal
+        return Commands.literal("place")
+            .then(placeCommand)
+            .then(deleteCommand);
     }
 
     /**
@@ -248,7 +246,6 @@ public class StructureUtilCommands {
         
         // Chemin vers les fichiers de structure
         Path structurePath = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase(), name + ".nbt");
-        Path metadataPath = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", type.toLowerCase(), name + ".json");
         
         if (!Files.exists(structurePath)) {
             context.getSource().sendFailure(Component.literal("La structure '" + name + "' n'existe pas dans le dossier " + type + "."));
@@ -256,10 +253,6 @@ public class StructureUtilCommands {
         }
         
         try {
-            // Charger la structure en utilisant le StructureTemplateManager
-            StructureTemplateManager templateManager = level.getStructureManager();
-            ResourceLocation structureId = new ResourceLocation(WhereIsHumanity.MOD_ID, name);
-            
             // Obtenir la position du joueur comme point de départ
             BlockPos playerPos = player.blockPosition();
             
@@ -283,20 +276,34 @@ public class StructureUtilCommands {
                     .setMirror(Mirror.NONE)
                     .setIgnoreEntities(false);
             
-            // Charger directement le template à partir du fichier
-            StructureTemplate template = templateManager.getOrCreate(structureId);
+            // Créer directement un nouveau template et le remplir avec le contenu du fichier NBT
+            StructureTemplate template = new StructureTemplate();
+            CompoundTag nbt = NbtIo.readCompressed(structurePath.toFile());
             
-            // Si on ne peut pas obtenir le template du gestionnaire, on charge directement à partir du fichier
+            WhereIsHumanity.LOGGER.info("Chargement de la structure: {} (taille NBT: {})", name, nbt.toString().length());
+            
+            // Approche plus directe pour charger la structure
+            StructureTemplateManager templateManager = level.getStructureManager();
+            template = templateManager.readStructure(nbt);
+            
             if (template == null) {
-                CompoundTag structureTag = NbtIo.readCompressed(structurePath.toFile());
-                template = templateManager.readStructure(structureTag);
+                context.getSource().sendFailure(Component.literal("Échec du chargement de la structure. Template null."));
+                return 0;
             }
             
+            WhereIsHumanity.LOGGER.info("Structure chargée: {} (taille: {}x{}x{})", 
+                    name, template.getSize().getX(), template.getSize().getY(), template.getSize().getZ());
+            
             // Placer la structure
-            template.placeInWorld(level, playerPos, playerPos, placeSettings, level.random, 2);
+            BlockPos placementPos = playerPos.below(); // Placer légèrement plus bas pour éviter les problèmes de flottement
+            template.placeInWorld(level, placementPos, placementPos, placeSettings, level.random, 2);
+            
+            // Afficher les logs de débogage
+            WhereIsHumanity.LOGGER.info("Structure placée à: {}, {}, {}", 
+                    placementPos.getX(), placementPos.getY(), placementPos.getZ());
             
             context.getSource().sendSuccess(() -> Component.literal("Structure '" + name + "' placée avec succès à la position " + 
-                    playerPos.getX() + ", " + playerPos.getY() + ", " + playerPos.getZ() + 
+                    placementPos.getX() + ", " + placementPos.getY() + ", " + placementPos.getZ() + 
                     (rotationDegrees > 0 ? " avec rotation de " + rotationDegrees + "°" : "") + "."), true);
             
             return 1;
