@@ -42,7 +42,7 @@ public class StructureUtilCommands {
      * @return L'argument builder pour les commandes utilitaires
      */
     public static ArgumentBuilder<CommandSourceStack, ?> register() {
-        // Nouveau noeud de commande pour delete
+        // Commande pour supprimer une structure
         ArgumentBuilder<CommandSourceStack, ?> deleteCommand = Commands.literal("delete")
             .then(Commands.argument("type", StringArgumentType.word())
                 .suggests((context, builder) -> {
@@ -73,7 +73,7 @@ public class StructureUtilCommands {
                 )
             );
         
-        // Nouveau noeud de commande pour place
+        // Commande pour placer une structure
         ArgumentBuilder<CommandSourceStack, ?> placeCommand = Commands.literal("place")
             .then(Commands.argument("type", StringArgumentType.word())
                 .suggests((context, builder) -> {
@@ -114,8 +114,8 @@ public class StructureUtilCommands {
                 )
             );
         
-        // Retourner directement les commandes delete et place sans le noeud "util"
-        return Commands.literal("delete").executes(context -> 0)
+        // Création d'un nœud commun qui contient à la fois delete et place
+        return Commands.literal("util")
             .then(deleteCommand)
             .then(placeCommand);
     }
