@@ -10,6 +10,7 @@ import com.whereishumanity.worldgen.structures.StructureType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -176,7 +177,7 @@ public class StructureRecordCommand {
                 structureType.name() + " nommée '" + structureName + "'."), true);
         context.getSource().sendSuccess(() -> Component.literal("Dimensions au sol: " + 
                 width + "x" + length + " (hauteur libre)"), true);
-        context.getSource().sendSuccess(() -> Component.literal("Construisez votre structure dans la zone indiquée, puis utilisez /wih structure setentrance pour définir l'entrée."), true);
+        context.getSource().sendSuccess(() -> Component.literal("Construisez votre structure dans la zone indiquée, puis utilisez /wih structure setentrance <direction> pour définir la façade."), true);
         context.getSource().sendSuccess(() -> Component.literal("Enfin, utilisez /wih structure save pour enregistrer la structure."), true);
                 
         return 1;
@@ -234,6 +235,7 @@ public class StructureRecordCommand {
         public final String structureName;
         public final BlockPos startPos;
         public BlockPos entrancePos;
+        public Direction entranceDirection;
         public final int width;
         public final int length;
         // Stockage pour les blocs originaux remplacés par la laine rouge
@@ -245,6 +247,7 @@ public class StructureRecordCommand {
             this.startPos = startPos;
             this.width = width;
             this.length = length;
+            this.entranceDirection = Direction.NORTH; // Direction par défaut
         }
     }
     
