@@ -1,6 +1,7 @@
 package com.whereishumanity;
 
 import com.whereishumanity.biomes.BiomeRegistry;
+import com.whereishumanity.commands.PlaceCommand;
 import com.whereishumanity.commands.StructureCommand;
 import com.whereishumanity.config.ModConfig;
 import com.whereishumanity.entities.EntityRegistry;
@@ -98,5 +99,8 @@ public class WhereIsHumanity {
         
         // Enregistrer la commande de structure
         StructureCommand.register(event.getDispatcher());
+        
+        // Enregistrer la commande de placement séparée
+        PlaceCommand.register(event.getDispatcher());
     }
 }
