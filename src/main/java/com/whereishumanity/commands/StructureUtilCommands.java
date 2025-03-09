@@ -8,12 +8,15 @@ import com.whereishumanity.WhereIsHumanity;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -113,7 +116,7 @@ public class StructureUtilCommands {
             );
         
         // Retourner directement les commandes delete et place sans le noeud "util"
-        return Commands.literal("delete").executes(context -> deleteCommand.getCommand().run(context))
+        return Commands.literal("delete").executes(context -> 0)
             .then(deleteCommand)
             .then(placeCommand);
     }
@@ -254,15 +257,26 @@ public class StructureUtilCommands {
         }
         
         try {
-            // Charger la structure
+            // Charger la structure depuis le gestionnaire
             StructureTemplateManager templateManager = level.getStructureManager();
-            StructureTemplate template = templateManager.getOrCreate(new ResourceLocation(WhereIsHumanity.MOD_ID, name));
+            StructureTemplate template = null;
             
-            if (template == null) {
-                // Charger manuellement depuis le fichier
+            try {
+                // Essayer de charger à partir du gestionnaire
+                ResourceLocation structureId = new ResourceLocation(WhereIsHumanity.MOD_ID, name);
+                template = templateManager.getOrCreate(structureId);
+            } catch (Exception e) {
+                // Si ça échoue, charger manuellement depuis le fichier
+                WhereIsHumanity.LOGGER.info("Chargement manuel de la structure: " + structurePath);
                 CompoundTag nbt = NbtIo.readCompressed(structurePath.toFile());
                 template = new StructureTemplate();
-                template.load(nbt);
+                // Utiliser le registre de blocs du niveau pour charger la structure
+                template.load(level.registryAccess().registryOrThrow(Registries.BLOCK), nbt);
+            }
+            
+            if (template == null) {
+                context.getSource().sendFailure(Component.literal("Impossible de charger la structure: " + name));
+                return 0;
             }
             
             // Obtenir la position du joueur comme point de départ
