@@ -8,12 +8,14 @@ import com.whereishumanity.WhereIsHumanity;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
@@ -281,12 +283,14 @@ public class StructureUtilCommands {
                     .setMirror(Mirror.NONE)
                     .setIgnoreEntities(false);
             
-            // Charger la structure depuis le fichier
-            CompoundTag structureTag = NbtIo.readCompressed(structurePath.toFile());
+            // Charger directement le template à partir du fichier
+            StructureTemplate template = templateManager.getOrCreate(structureId);
             
-            // Créer une nouvelle instance du template à partir des données NBT
-            StructureTemplate template = new StructureTemplate();
-            template.load(structureTag);
+            // Si on ne peut pas obtenir le template du gestionnaire, on charge directement à partir du fichier
+            if (template == null) {
+                CompoundTag structureTag = NbtIo.readCompressed(structurePath.toFile());
+                template = templateManager.readStructure(structureTag);
+            }
             
             // Placer la structure
             template.placeInWorld(level, playerPos, playerPos, placeSettings, level.random, 2);
