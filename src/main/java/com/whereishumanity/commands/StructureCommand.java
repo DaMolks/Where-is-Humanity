@@ -282,3 +282,240 @@ public class StructureCommand {
         
         return 1;
     }
+
+    /**
+     * Enregistre la structure dans un fichier
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int saveStructure(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        ServerLevel level = player.serverLevel();
+        
+        // Vérifier si le joueur a une session active
+        if (!activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous n'avez pas de session d'enregistrement active."));
+            return 0;
+        }
+        
+        RecordingSession session = activeSessions.get(playerId);
+        
+        // Vérifier si l'entrée a été définie
+        if (session.entrancePos == null) {
+            context.getSource().sendFailure(Component.literal("Vous devez d'abord définir la position d'entrée avec /wih structure setentrance"));
+            return 0;
+        }
+        
+        try {
+            // Créer le dossier de structures s'il n'existe pas
+            Path structuresDir = Paths.get("config", WhereIsHumanity.MOD_ID, "structures", 
+                    session.structureType.getCategory().toLowerCase());
+            Files.createDirectories(structuresDir);
+            
+            // Obtenir les dimensions au sol (X, Z)
+            int width = session.width;
+            int length = session.length;
+            
+            // Détecter la hauteur réelle de la structure
+            int height = detectStructureHeight(level, session.startPos, width, length);
+            
+            // Créer un template de structure
+            StructureTemplateManager templateManager = level.getStructureManager();
+            ResourceLocation structureId = new ResourceLocation(WhereIsHumanity.MOD_ID, session.structureName);
+            StructureTemplate template = templateManager.getOrCreate(structureId);
+            
+            // Définir la zone à enregistrer avec la hauteur détectée
+            BlockPos endPos = session.startPos.offset(width - 1, height - 1, length - 1);
+            
+            // Modifier temporairement les blocs marqueurs pour qu'ils ne soient pas inclus dans la structure
+            Map<BlockPos, BlockState> markerBlocks = new HashMap<>();
+            for (BlockPos pos : session.originalBlocks.keySet()) {
+                // Sauvegarder les marqueurs actuels
+                markerBlocks.put(pos, level.getBlockState(pos));
+                // Restaurer temporairement les blocs d'origine pour l'enregistrement
+                level.setBlock(pos, session.originalBlocks.get(pos), 3);
+            }
+            
+            // Si l'entrée est marquée par un bloc d'or, le remplacer temporairement
+            BlockPos entranceWorldPos = session.startPos.offset(session.entrancePos);
+            BlockState entranceBlockState = null;
+            if (level.getBlockState(entranceWorldPos).is(Blocks.GOLD_BLOCK)) {
+                entranceBlockState = level.getBlockState(entranceWorldPos);
+                // Récupérer l'état du bloc sous la structure (généralement de l'air)
+                level.setBlock(entranceWorldPos, Blocks.AIR.defaultBlockState(), 3);
+            }
+            
+            // Enregistrer la structure avec les marqueurs cachés
+            template.fillFromWorld(level, session.startPos, new BlockPos(width, height, length), true, Blocks.AIR);
+            
+            // Restaurer les marqueurs pour la visualisation
+            for (Map.Entry<BlockPos, BlockState> entry : markerBlocks.entrySet()) {
+                level.setBlock(entry.getKey(), entry.getValue(), 3);
+            }
+            
+            // Restaurer le marqueur d'entrée
+            if (entranceBlockState != null) {
+                level.setBlock(entranceWorldPos, entranceBlockState, 3);
+            }
+            
+            // Enregistrer la structure
+            Path structurePath = structuresDir.resolve(session.structureName + ".nbt");
+            CompoundTag nbt = template.save(new CompoundTag());
+            NbtIo.writeCompressed(nbt, structurePath.toFile());
+            
+            // Enregistrer les métadonnées (entrée, etc.)
+            Path metadataPath = structuresDir.resolve(session.structureName + ".json");
+            String metadata = String.format(
+                    "{\\n" +
+                    "  \\\"type\\\": \\\"%s\\\",\\n" +
+                    "  \\\"entrance\\\": {\\n" +
+                    "    \\\"x\\\": %d,\\n" +
+                    "    \\\"y\\\": %d,\\n" +
+                    "    \\\"z\\\": %d\\n" +
+                    "  },\\n" +
+                    "  \\\"dimensions\\\": {\\n" +
+                    "    \\\"width\\\": %d,\\n" +
+                    "    \\\"height\\\": %d,\\n" +
+                    "    \\\"length\\\": %d\\n" +
+                    "  }\\n" +
+                    "}",
+                    session.structureType.name(),
+                    session.entrancePos.getX(), session.entrancePos.getY(), session.entrancePos.getZ(),
+                    width, height, length
+            );
+            Files.write(metadataPath, metadata.getBytes());
+            
+            // Nettoyer la zone
+            clearBuildingArea(player, session);
+            
+            // Supprimer la session
+            activeSessions.remove(playerId);
+            
+            context.getSource().sendSuccess(() -> Component.literal("Structure '" + session.structureName + 
+                    "' enregistrée avec succès dans " + structurePath.toString()), true);
+            context.getSource().sendSuccess(() -> Component.literal("Hauteur détectée automatiquement: " + height + " blocs"), true);
+            
+            return 1;
+        } catch (IOException e) {
+            WhereIsHumanity.LOGGER.error("Erreur lors de l'enregistrement de la structure", e);
+            context.getSource().sendFailure(Component.literal("Erreur lors de l'enregistrement de la structure: " + e.getMessage()));
+            return 0;
+        }
+    }
+
+    /**
+     * Détecte la hauteur maximale utilisée par la structure
+     * @param level Le niveau du serveur
+     * @param startPos Position de départ
+     * @param width Largeur
+     * @param length Longueur
+     * @return Hauteur maximale détectée (min 5 blocs)
+     */
+    private static int detectStructureHeight(ServerLevel level, BlockPos startPos, int width, int length) {
+        int maxHeight = 1; // Au moins un bloc de haut
+        int scanHeight = 256; // Hauteur de scan maximale
+        
+        // Scanner la zone pour trouver le bloc le plus haut
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < length; z++) {
+                for (int y = 0; y < scanHeight; y++) {
+                    BlockPos pos = startPos.offset(x, y, z);
+                    if (!level.getBlockState(pos).isAir() && !level.getBlockState(pos).is(Blocks.RED_WOOL)) {
+                        maxHeight = Math.max(maxHeight, y + 1);
+                    }
+                }
+            }
+        }
+        
+        // Assurer une hauteur minimale de 5 blocs
+        return Math.max(maxHeight, 5);
+    }
+
+    /**
+     * Affiche la zone de construction avec des blocs de laine rouge dans le sol
+     * @param player Joueur
+     * @param session Session d'enregistrement
+     */
+    private static void displayBuildingArea(ServerPlayer player, RecordingSession session) {
+        ServerLevel level = player.serverLevel();
+        BlockPos startPos = session.startPos;
+        int width = session.width;
+        int length = session.length;
+        
+        // Placer de la laine rouge directement dans le sol sur le périmètre
+        for (int x = 0; x < width; x++) {
+            for (int z = 0; z < length; z++) {
+                if (x == 0 || x == width - 1 || z == 0 || z == length - 1) {
+                    // Calculer la position exacte
+                    BlockPos blockPos = startPos.offset(x, 0, z);
+                    
+                    // Sauvegarder le bloc existant pour pouvoir le restaurer plus tard
+                    session.originalBlocks.put(blockPos, level.getBlockState(blockPos));
+                    
+                    // Remplacer par la laine rouge
+                    level.setBlock(blockPos, Blocks.RED_WOOL.defaultBlockState(), 3);
+                }
+            }
+        }
+    }
+
+    /**
+     * Supprime les blocs de marquage de la zone de construction
+     * @param player Joueur
+     * @param session Session d'enregistrement
+     */
+    private static void clearBuildingArea(ServerPlayer player, RecordingSession session) {
+        ServerLevel level = player.serverLevel();
+        
+        // Restaurer tous les blocs d'origine qui ont été remplacés par de la laine rouge
+        for (Map.Entry<BlockPos, BlockState> entry : session.originalBlocks.entrySet()) {
+            level.setBlock(entry.getKey(), entry.getValue(), 3);
+        }
+        
+        // Retirer le bloc marqueur d'entrée si présent
+        if (session.entrancePos != null) {
+            BlockPos entranceWorldPos = session.startPos.offset(session.entrancePos);
+            if (level.getBlockState(entranceWorldPos).is(Blocks.GOLD_BLOCK)) {
+                level.setBlock(entranceWorldPos, Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+    }
+
+    /**
+     * Vérifie si une position est dans la zone de construction (vérifie uniquement X et Z)
+     * @param pos Position à vérifier
+     * @param session Session d'enregistrement
+     * @return true si la position est dans la zone au sol
+     */
+    private static boolean isWithinBuildingAreaXZ(BlockPos pos, RecordingSession session) {
+        BlockPos startPos = session.startPos;
+        int width = session.width;
+        int length = session.length;
+        
+        return pos.getX() >= startPos.getX() && pos.getX() < startPos.getX() + width &&
+               pos.getZ() >= startPos.getZ() && pos.getZ() < startPos.getZ() + length;
+    }
+
+    /**
+     * Classe interne pour stocker les informations de session d'enregistrement
+     */
+    public static class RecordingSession {
+        public final StructureType structureType;
+        public final String structureName;
+        public final BlockPos startPos;
+        public BlockPos entrancePos;
+        public final int width;
+        public final int length;
+        // Stockage pour les blocs originaux remplacés par la laine rouge
+        public final Map<BlockPos, BlockState> originalBlocks = new HashMap<>();
+        
+        public RecordingSession(StructureType structureType, String structureName, BlockPos startPos, int width, int length) {
+            this.structureType = structureType;
+            this.structureName = structureName;
+            this.startPos = startPos;
+            this.width = width;
+            this.length = length;
+        }
+    }
+}
