@@ -4,7 +4,7 @@ import com.whereishumanity.biomes.BiomeRegistry;
 import com.whereishumanity.commands.DeleteCommand;
 import com.whereishumanity.commands.GenerateCommand;
 import com.whereishumanity.commands.PlaceCommand;
-import com.whereishumanity.commands.StructureCommand;
+import com.whereishumanity.commands.StructureCommandRegistry;
 import com.whereishumanity.config.ModConfig;
 import com.whereishumanity.entities.EntityRegistry;
 import com.whereishumanity.worldgen.features.FeatureRegistry;
@@ -99,8 +99,8 @@ public class WhereIsHumanity {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         LOGGER.info("Enregistrement des commandes du mod");
         
-        // Enregistrer la commande de structure
-        StructureCommand.register(event.getDispatcher());
+        // Utiliser le registre central pour enregistrer toutes les commandes de structure
+        StructureCommandRegistry.register(event.getDispatcher());
         
         // Enregistrer la commande de placement
         PlaceCommand.register(event.getDispatcher());
