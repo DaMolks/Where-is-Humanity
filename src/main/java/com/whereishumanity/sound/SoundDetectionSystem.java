@@ -10,6 +10,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -17,6 +19,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -33,6 +36,12 @@ public class SoundDetectionSystem {
 
     // Cache des sons actifs par dimension
     private static final Map<String, List<SoundEvent>> ACTIVE_SOUNDS = new HashMap<>();
+    
+    // Seuil de distance pour détecter un joueur accroupi (en blocs)
+    private static final double SNEAK_DETECTION_DISTANCE = 3.5;
+    
+    // Modificateurs pour la course
+    private static final double SPRINT_SOUND_MULTIPLIER = 2.0;
     
     /**
      * Classe interne représentant un événement sonore dans le monde
@@ -54,7 +63,7 @@ public class SoundDetectionSystem {
             this.maxAge = switch(soundLevel) {
                 case 1 -> 10; // Sons faibles disparaissent rapidement (0.5s)
                 case 2 -> 20; // Sons moyens durent un peu plus (1s)
-                case 3 -> 40; // Sons forts persistent plus longtemps (2s)
+                case 3 -> 60; // Sons forts persistent plus longtemps (3s)
                 default -> 10;
             };
         }
@@ -90,6 +99,23 @@ public class SoundDetectionSystem {
     public static void emitSound(Level level, BlockPos pos, int soundLevel, Entity source) {
         if (level.isClientSide) return; // Sons traités seulement côté serveur
         
+        // Si la source est un joueur accroupi et que le son est faible, on réduit davantage le son
+        if (source instanceof Player player && player.isShiftKeyDown() && soundLevel == 1) {
+            // Les joueurs accroupis ne font presque pas de bruit pour les actions faibles
+            return;
+        }
+        
+        // Si la source est un joueur accroupi et que le son est moyen, on le réduit à faible
+        if (source instanceof Player player && player.isShiftKeyDown() && soundLevel == 2) {
+            soundLevel = 1;
+        }
+        
+        // Si la source est un joueur qui court, on augmente le niveau du son
+        if (source instanceof Player player && player.isSprinting()) {
+            // Les joueurs qui courent font plus de bruit
+            soundLevel = Math.min(3, soundLevel + 1);
+        }
+        
         String dimensionKey = getDimensionKey(level);
         SoundEvent soundEvent = new SoundEvent(pos, soundLevel, source);
         
@@ -116,6 +142,11 @@ public class SoundDetectionSystem {
             case 3 -> ModConfig.COMMON.loudSoundDetectionRadius.get();
             default -> 8;
         };
+        
+        // Si la source est un joueur qui court, augmenter le rayon de détection
+        if (soundEvent.getSource() instanceof Player player && player.isSprinting()) {
+            radius = (int)(radius * SPRINT_SOUND_MULTIPLIER);
+        }
         
         // Récupérer la boîte englobante autour du son
         AABB detectionBox = new AABB(
@@ -195,12 +226,31 @@ public class SoundDetectionSystem {
         }
     }
     
+    /**
+     * Vérifie si un joueur est visible pour un zombie par l'odeur (quand accroupi)
+     * @param zombie Le zombie qui détecte
+     * @param player Le joueur à détecter
+     * @return true si le joueur est détectable par l'odeur
+     */
+    public static boolean canSmellPlayer(SmartZombieEntity zombie, Player player) {
+        // Vérifier si le joueur est accroupi
+        if (!player.isShiftKeyDown()) {
+            return true; // Si le joueur n'est pas accroupi, il est toujours visible
+        }
+        
+        // Calculer la distance entre le zombie et le joueur
+        double distance = zombie.distanceTo(player);
+        
+        // Le joueur est détectable par l'odeur uniquement si il est très proche
+        return distance <= SNEAK_DETECTION_DISTANCE;
+    }
+    
     // Événements qui génèrent des sons
     
     @SubscribeEvent
     public static void onLivingJump(LivingEvent.LivingJumpEvent event) {
         if (event.getEntity() instanceof Player) {
-            emitSound(event.getEntity().level(), event.getEntity().blockPosition(), 1, event.getEntity());
+            emitSound(event.getEntity().level(), event.getEntity().blockPosition(), 2, event.getEntity());
         }
     }
     
@@ -210,24 +260,48 @@ public class SoundDetectionSystem {
         Block block = event.getState().getBlock();
         int soundLevel;
         
-        if (block == Blocks.GLASS || block == Blocks.GLASS_PANE) {
+        if (block == Blocks.GLASS || block == Blocks.GLASS_PANE || 
+            block.getDescriptionId().contains("glass")) {
             soundLevel = 3; // Bris de verre = son fort
         } else if (block == Blocks.OAK_DOOR || block == Blocks.SPRUCE_DOOR || 
                   block == Blocks.BIRCH_DOOR || block == Blocks.JUNGLE_DOOR ||
                   block == Blocks.ACACIA_DOOR || block == Blocks.DARK_OAK_DOOR ||
-                  block == Blocks.CRIMSON_DOOR || block == Blocks.WARPED_DOOR) {
+                  block == Blocks.CRIMSON_DOOR || block == Blocks.WARPED_DOOR ||
+                  block.getDescriptionId().contains("door")) {
             soundLevel = 2; // Portes en bois = son moyen
-        } else if (block == Blocks.STONE || block == Blocks.COBBLESTONE) {
+        } else if (block == Blocks.STONE || block == Blocks.COBBLESTONE || 
+                   block.getDescriptionId().contains("stone")) {
             soundLevel = 2; // Pierre = son moyen
         } else {
             soundLevel = 1; // Autres = son faible
         }
         
-        // Cast LevelAccessor to Level - nous savons que c'est sécuritaire dans ce contexte
-        // Si cela ne fonctionne pas dans certains cas, on pourrait ajouter une vérification supplémentaire
+        // Cast LevelAccessor to Level
         if (event.getLevel() instanceof Level level) {
             emitSound(level, event.getPos(), soundLevel, event.getPlayer());
         }
+    }
+    
+    @SubscribeEvent
+    public static void onItemUse(PlayerInteractEvent.RightClickItem event) {
+        // Utiliser un item fait un son faible
+        emitSound(event.getLevel(), event.getPos(), 1, event.getEntity());
+    }
+    
+    @SubscribeEvent
+    public static void onBlockInteract(PlayerInteractEvent.RightClickBlock event) {
+        // Interagir avec un bloc fait un son faible à moyen selon le bloc
+        Block block = event.getLevel().getBlockState(event.getPos()).getBlock();
+        int soundLevel = 1;
+        
+        // Portes et coffres font plus de bruit
+        if (block.getDescriptionId().contains("door") || 
+            block.getDescriptionId().contains("chest") || 
+            block.getDescriptionId().contains("gate")) {
+            soundLevel = 2;
+        }
+        
+        emitSound(event.getLevel(), event.getPos(), soundLevel, event.getEntity());
     }
     
     @SubscribeEvent
@@ -246,9 +320,19 @@ public class SoundDetectionSystem {
         
         // Détecter les joueurs qui courent
         if (event.getEntity() instanceof Player player) {
-            if (player.isSprinting() && player.tickCount % 5 == 0) {
+            if (player.isSprinting() && player.tickCount % 3 == 0) {
+                // Courir fait un son moyen fréquent
                 emitSound(player.level(), player.blockPosition(), 2, player);
+            } else if (player.tickCount % 20 == 0 && !player.isShiftKeyDown()) {
+                // Se déplacer normalement fait un son faible occasionnel
+                emitSound(player.level(), player.blockPosition(), 1, player);
             }
+        }
+        
+        // Détecter les attaques
+        if (event.getEntity() instanceof Player player && player.getAttackAnim(0) > 0.0F && player.getAttackAnim(0) < 0.2F) {
+            // Frapper fait un son moyen
+            emitSound(player.level(), player.blockPosition(), 2, player);
         }
     }
 }
