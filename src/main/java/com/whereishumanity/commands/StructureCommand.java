@@ -134,3 +134,151 @@ public class StructureCommand {
         
         return baseTypeName + "_" + count;
     }
+
+    /**
+     * Démarre l'enregistrement d'une nouvelle structure avec des dimensions personnalisées
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int startRecordingCustom(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        String typeArg = StringArgumentType.getString(context, "type");
+        int width = IntegerArgumentType.getInteger(context, "width");
+        int length = IntegerArgumentType.getInteger(context, "length");
+        
+        // Valider le type de structure
+        StructureType structureType;
+        try {
+            structureType = StructureType.valueOf(typeArg.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            context.getSource().sendFailure(Component.literal("Type de structure invalide: " + typeArg));
+            return 0;
+        }
+        
+        // Générer un nom incrément basé sur le nombre de structures existantes
+        String structureName = generateIncrementalName(structureType);
+        
+        return startRecording(context, structureType, structureName, width, length);
+    }
+
+    /**
+     * Démarre l'enregistrement d'une nouvelle structure (logique commune)
+     * @param context Contexte de la commande
+     * @param structureType Type de structure
+     * @param structureName Nom de la structure
+     * @param width Largeur personnalisée
+     * @param length Longueur personnalisée
+     * @return Code de résultat
+     */
+    private static int startRecording(CommandContext<CommandSourceStack> context, StructureType structureType, 
+                                      String structureName, int width, int length) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        
+        // Vérifier si le joueur a déjà une session active
+        if (activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous avez déjà une session d'enregistrement active. Utilisez /wih structure cancel pour l'annuler d'abord."));
+            return 0;
+        }
+        
+        // Obtenir la position au sol au lieu des pieds du joueur
+        BlockPos playerPos = player.blockPosition();
+        BlockPos groundPos = findGroundPosition(player.level(), playerPos);
+        
+        // Créer une nouvelle session d'enregistrement avec dimensions personnalisées
+        RecordingSession session = new RecordingSession(structureType, structureName, groundPos, width, length);
+        activeSessions.put(playerId, session);
+        
+        // Afficher la zone de construction au sol
+        displayBuildingArea(player, session);
+        
+        context.getSource().sendSuccess(() -> Component.literal("Session d'enregistrement démarrée pour une structure de type " + 
+                structureType.name() + " nommée '" + structureName + "'."), true);
+        context.getSource().sendSuccess(() -> Component.literal("Dimensions au sol: " + 
+                width + "x" + length + " (hauteur libre)"), true);
+        context.getSource().sendSuccess(() -> Component.literal("Construisez votre structure dans la zone indiquée, puis utilisez /wih structure setentrance pour définir l'entrée."), true);
+        context.getSource().sendSuccess(() -> Component.literal("Enfin, utilisez /wih structure save pour enregistrer la structure."), true);
+                
+        return 1;
+    }
+
+    /**
+     * Trouve la position du sol sous le joueur
+     * @param level Le niveau
+     * @param playerPos Position du joueur
+     * @return Position du sol
+     */
+    private static BlockPos findGroundPosition(Level level, BlockPos playerPos) {
+        // Descendre jusqu'à trouver un bloc solide
+        BlockPos groundPos = playerPos;
+        while (groundPos.getY() > 0 && level.getBlockState(groundPos.below()).isAir()) {
+            groundPos = groundPos.below();
+        }
+        // Maintenant, descendre d'un bloc supplémentaire pour être dans le sol plutôt que dessus
+        return groundPos.below();
+    }
+
+    /**
+     * Annule la session d'enregistrement active
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int cancelRecording(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        
+        // Vérifier si le joueur a une session active
+        if (!activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous n'avez pas de session d'enregistrement active."));
+            return 0;
+        }
+        
+        // Supprimer les marqueurs de la zone de construction
+        RecordingSession session = activeSessions.get(playerId);
+        clearBuildingArea(player, session);
+        
+        // Supprimer la session
+        activeSessions.remove(playerId);
+        
+        context.getSource().sendSuccess(() -> Component.literal("Session d'enregistrement annulée."), true);
+        
+        return 1;
+    }
+
+    /**
+     * Définit la position de l'entrée de la structure
+     * @param context Contexte de la commande
+     * @return Code de résultat
+     */
+    private static int setEntrancePosition(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        UUID playerId = player.getUUID();
+        
+        // Vérifier si le joueur a une session active
+        if (!activeSessions.containsKey(playerId)) {
+            context.getSource().sendFailure(Component.literal("Vous n'avez pas de session d'enregistrement active."));
+            return 0;
+        }
+        
+        RecordingSession session = activeSessions.get(playerId);
+        
+        // Utiliser le bloc sur lequel le joueur se trouve
+        BlockPos entrancePos = player.blockPosition();
+        
+        // Vérifier si la position est dans la zone de construction au sol
+        if (!isWithinBuildingAreaXZ(entrancePos, session)) {
+            context.getSource().sendFailure(Component.literal("La position d'entrée doit être dans la zone de construction (vérification au sol uniquement)."));
+            return 0;
+        }
+        
+        // Enregistrer la position relative par rapport au coin de la structure
+        BlockPos relativePos = entrancePos.subtract(session.startPos);
+        session.entrancePos = relativePos;
+        
+        // Marquer l'entrée avec un bloc spécial
+        player.level().setBlock(entrancePos, Blocks.GOLD_BLOCK.defaultBlockState(), 3);
+        
+        context.getSource().sendSuccess(() -> Component.literal("Position d'entrée définie à " + 
+                relativePos.getX() + ", " + relativePos.getY() + ", " + relativePos.getZ() + " (relative à l'origine)."), true);
+        
+        return 1;
+    }
