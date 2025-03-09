@@ -40,6 +40,9 @@ public class StructureUtilCommands {
      * @return L'argument builder pour les commandes utilitaires
      */
     public static ArgumentBuilder<CommandSourceStack, ?> register() {
+        // Noeud parent pour les commandes utilitaires
+        ArgumentBuilder<CommandSourceStack, ?> utilCommandNode = Commands.literal("util");
+        
         // Commande pour supprimer une structure
         ArgumentBuilder<CommandSourceStack, ?> deleteCommand = Commands.literal("delete")
             .then(Commands.argument("type", StringArgumentType.word())
@@ -112,10 +115,12 @@ public class StructureUtilCommands {
                 )
             );
         
-        // Ajouter les commandes directement au noeud principal
-        return Commands.literal("place")
-            .then(placeCommand)
-            .then(deleteCommand);
+        // Ajouter les commandes au noeud principal et le retourner
+        utilCommandNode
+            .then(deleteCommand)
+            .then(placeCommand);
+        
+        return utilCommandNode;
     }
 
     /**
@@ -276,15 +281,10 @@ public class StructureUtilCommands {
                     .setMirror(Mirror.NONE)
                     .setIgnoreEntities(false);
             
-            // Créer directement un nouveau template et le remplir avec le contenu du fichier NBT
-            StructureTemplate template = new StructureTemplate();
+            // Charger directement le template à partir du fichier NBT
             CompoundTag nbt = NbtIo.readCompressed(structurePath.toFile());
-            
-            WhereIsHumanity.LOGGER.info("Chargement de la structure: {} (taille NBT: {})", name, nbt.toString().length());
-            
-            // Approche plus directe pour charger la structure
             StructureTemplateManager templateManager = level.getStructureManager();
-            template = templateManager.readStructure(nbt);
+            StructureTemplate template = templateManager.readStructure(nbt);
             
             if (template == null) {
                 context.getSource().sendFailure(Component.literal("Échec du chargement de la structure. Template null."));
@@ -297,10 +297,6 @@ public class StructureUtilCommands {
             // Placer la structure
             BlockPos placementPos = playerPos.below(); // Placer légèrement plus bas pour éviter les problèmes de flottement
             template.placeInWorld(level, placementPos, placementPos, placeSettings, level.random, 2);
-            
-            // Afficher les logs de débogage
-            WhereIsHumanity.LOGGER.info("Structure placée à: {}, {}, {}", 
-                    placementPos.getX(), placementPos.getY(), placementPos.getZ());
             
             context.getSource().sendSuccess(() -> Component.literal("Structure '" + name + "' placée avec succès à la position " + 
                     placementPos.getX() + ", " + placementPos.getY() + ", " + placementPos.getZ() + 
