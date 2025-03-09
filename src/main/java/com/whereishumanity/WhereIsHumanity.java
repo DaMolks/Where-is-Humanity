@@ -1,9 +1,7 @@
 package com.whereishumanity;
 
 import com.whereishumanity.biomes.BiomeRegistry;
-import com.whereishumanity.commands.DeleteCommand;
 import com.whereishumanity.commands.GenerateCommand;
-import com.whereishumanity.commands.PlaceCommand;
 import com.whereishumanity.commands.StructureCommandRegistry;
 import com.whereishumanity.config.ModConfig;
 import com.whereishumanity.entities.EntityRegistry;
@@ -101,12 +99,6 @@ public class WhereIsHumanity {
         
         // Utiliser le registre central pour enregistrer toutes les commandes de structure
         StructureCommandRegistry.register(event.getDispatcher());
-        
-        // Enregistrer la commande de placement
-        PlaceCommand.register(event.getDispatcher());
-        
-        // Enregistrer la commande de suppression
-        DeleteCommand.register(event.getDispatcher());
         
         // Enregistrer la commande de génération de villages/villes
         GenerateCommand.register(event.getDispatcher());
