@@ -17,7 +17,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -80,75 +79,6 @@ public class StructureCommand {
                     .then(Commands.literal("setentrance")
                         .executes(StructureCommand::setEntrancePosition)
                     )
-                    // Commandes pour placer et supprimer des structures
-                    .then(Commands.literal("place")
-                        .then(Commands.argument("type", StringArgumentType.word())
-                            .suggests((context, builder) -> {
-                                try {
-                                    for (String type : StructureUtilCommands.listStructureDirectories()) {
-                                        builder.suggest(type);
-                                    }
-                                } catch (Exception e) {
-                                    WhereIsHumanity.LOGGER.error("Erreur lors de la suggestion des types de structures", e);
-                                }
-                                return builder.buildFuture();
-                            })
-                            .then(Commands.argument("name", StringArgumentType.word())
-                                .suggests((context, builder) -> {
-                                    try {
-                                        String type = StringArgumentType.getString(context, "type");
-                                        for (String structure : StructureUtilCommands.listStructureFiles(type)) {
-                                            builder.suggest(structure);
-                                        }
-                                    } catch (Exception e) {
-                                        WhereIsHumanity.LOGGER.error("Erreur lors de la suggestion des noms de structures", e);
-                                    }
-                                    return builder.buildFuture();
-                                })
-                                .executes(StructureUtilCommands::placeStructure)
-                                .then(Commands.argument("rotation", StringArgumentType.word())
-                                    .suggests((context, builder) -> {
-                                        builder.suggest("0");
-                                        builder.suggest("90");
-                                        builder.suggest("180");
-                                        builder.suggest("270");
-                                        return builder.buildFuture();
-                                    })
-                                    .executes(StructureUtilCommands::placeStructureWithRotation)
-                                )
-                            )
-                        )
-                    )
-                    .then(Commands.literal("delete")
-                        .then(Commands.argument("type", StringArgumentType.word())
-                            .suggests((context, builder) -> {
-                                try {
-                                    for (String type : StructureUtilCommands.listStructureDirectories()) {
-                                        builder.suggest(type);
-                                    }
-                                } catch (Exception e) {
-                                    WhereIsHumanity.LOGGER.error("Erreur lors de la suggestion des types de structures", e);
-                                }
-                                return builder.buildFuture();
-                            })
-                            .then(Commands.argument("name", StringArgumentType.word())
-                                .suggests((context, builder) -> {
-                                    try {
-                                        String type = StringArgumentType.getString(context, "type");
-                                        for (String structure : StructureUtilCommands.listStructureFiles(type)) {
-                                            builder.suggest(structure);
-                                        }
-                                    } catch (Exception e) {
-                                        WhereIsHumanity.LOGGER.error("Erreur lors de la suggestion des noms de structures", e);
-                                    }
-                                    return builder.buildFuture();
-                                })
-                                .executes(StructureUtilCommands::deleteStructure)
-                            )
-                        )
-                    )
-                    // Délégation aux autres commandes utilitaires (pour conserver les commandes existantes)
-                    .then(StructureUtilCommands.register())
                 )
         );
     }
